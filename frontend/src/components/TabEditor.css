@@ -1,0 +1,229 @@
+/* Mode Toggle */
+.mode-toggle {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.toggle-btn {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.toggle-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Tab Grid */
+.tab-grid-container {
+  overflow-x: auto;
+  padding: 0.25rem 0;
+}
+
+.tab-grid {
+  display: flex;
+  gap: 0;
+  min-width: fit-content;
+}
+
+.string-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--bg-card);
+}
+
+.string-label {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  border: 1px solid var(--border);
+}
+
+.fret-inputs-wrapper {
+  overflow-x: auto;
+  padding-left: 4px;
+}
+
+.fret-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.string-row {
+  display: flex;
+  gap: 2px;
+}
+
+.fret-input {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  transition: all 0.1s ease;
+}
+
+.fret-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.fret-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Text Mode */
+.tab-textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.tab-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tab-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Preview Section */
+.preview-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.preview-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tab-preview {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  overflow-x: auto;
+  white-space: pre;
+  border: 1px solid var(--border);
+}
+
+/* Saved Tabs List */
+.saved-tabs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.saved-tab-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  transition: background 0.1s ease;
+}
+
+.saved-tab-item:hover {
+  background: var(--bg-hover);
+}
+
+.tab-name {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+}
+
+/* Full width layout */
+.tab-editor {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1rem;
+  height: calc(100vh - 60px);
+}
+
+.tab-editor > .card:first-child {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-editor > .card:last-child {
+  margin-bottom: 0;
+  overflow-y: auto;
+}
+
+.table-mode, .text-mode {
+  flex: 1;
+  overflow: auto;
+}
+
+.tab-textarea {
+  height: 100%;
+  min-height: 300px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .tab-editor {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .tab-editor > .card:first-child {
+    min-height: 60vh;
+  }
+}
