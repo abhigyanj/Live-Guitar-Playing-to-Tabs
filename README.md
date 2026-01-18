@@ -44,7 +44,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-### Option 2: Run manually
+### Option 2: Run manually (macOS/Linux)
 
 **Step 1: Start the backend (Terminal 1)**
 
@@ -54,7 +54,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install flask flask-cors
+pip install -r requirements.txt
 
 # Run the API server
 python app.py
@@ -63,6 +63,71 @@ python app.py
 **Step 2: Start the frontend (Terminal 2)**
 
 ```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Step 3: Open the app**
+
+Open your browser to the URL shown in the frontend terminal (usually http://localhost:5173)
+
+---
+
+### Option 3: Run manually (Windows - Command Prompt)
+
+**Step 1: Start the backend (Terminal 1)**
+
+```cmd
+:: Create and activate virtual environment
+python -m venv .venv
+.venv\Scripts\activate.bat
+
+:: Install dependencies
+pip install -r requirements.txt
+
+:: Run the API server
+python app.py
+```
+
+**Step 2: Start the frontend (Terminal 2)**
+
+```cmd
+cd frontend
+npm install
+npm run dev
+```
+
+**Step 3: Open the app**
+
+Open your browser to the URL shown in the frontend terminal (usually http://localhost:5173)
+
+---
+
+### Option 4: Run manually (Windows - PowerShell)
+
+**Step 1: Start the backend (Terminal 1)**
+
+```powershell
+# Create and activate virtual environment
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the API server
+python app.py
+```
+
+> **Note**: If you get an execution policy error, run:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+
+**Step 2: Start the frontend (Terminal 2)**
+
+```powershell
 cd frontend
 npm install
 npm run dev
