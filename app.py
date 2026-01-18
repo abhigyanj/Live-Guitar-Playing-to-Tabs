@@ -71,6 +71,16 @@ def get_tabs():
     return jsonify({'tabs': tabs})
 
 
+@app.route('/get-tab/<filename>')
+def get_tab(filename):
+    filepath = os.path.join(TABS_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            content = f.read()
+        return jsonify({'success': True, 'content': content, 'filename': filename})
+    return jsonify({'success': False, 'error': 'File not found'}), 404
+
+
 if __name__ == '__main__':
     print("Starting Guitar Tab Studio API server...")
     print("API running at: http://127.0.0.1:5000")

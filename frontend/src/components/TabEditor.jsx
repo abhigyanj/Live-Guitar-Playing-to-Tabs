@@ -24,7 +24,11 @@ function TabEditor() {
   const [savedTabs, setSavedTabs] = useState([])
   const [mode, setMode] = useState('grid')
   const [textInput, setTextInput] = useState('')
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playbackPosition, setPlaybackPosition] = useState(-1)
   const tabRef = useRef(null)
+  const audioContextRef = useRef(null)
+  const playbackRef = useRef(null)
 
   useEffect(() => {
     loadSavedTabs()
@@ -142,6 +146,204 @@ function TabEditor() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Guitar string open frequencies (standard tuning)
+  const STRING_FREQUENCIES = {
+    'e': 329.63, // E4
+    'B': 246.94, // B3
+    'G': 196.00, // G3
+    'D': 146.83, // D3
+    'A': 110.00, // A2
+    'E': 82.41   // E2
+  }
+
+  // Calculate frequency for a fret on a string
+  const getFretFrequency = (stringName, fret) => {
+    const openFreq = STRING_FREQUENCIES[stringName]
+    return openFreq * Math.pow(2, fret / 12)
+  }
+
+  // Play a single note using Web Audio API
+  const playNote = (frequency, duration = 0.3) => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+    }
+    const ctx = audioContextRef.current
+    
+    // Create oscillator for the fundamental
+    const osc = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+    
+    // Guitar-like waveform
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime)
+    
+    // Add harmonics for richer sound
+    const osc2 = ctx.createOscillator()
+    const gain2 = ctx.createGain()
+    osc2.type = 'sine'
+    osc2.frequency.setValueAtTime(frequency * 2, ctx.currentTime)
+    gain2.gain.setValueAtTime(0.3, ctx.currentTime)
+    
+    // Envelope (attack, decay, sustain, release)
+    gainNode.gain.setValueAtTime(0, ctx.currentTime)
+    gainNode.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.01) // Attack
+    gainNode.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.1) // Decay
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration) // Release
+    
+    gain2.gain.setValueAtTime(0, ctx.currentTime)
+    gain2.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01)
+    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration * 0.8)
+    
+    osc.connect(gainNode)
+    osc2.connect(gain2)
+    gainNode.connect(ctx.destination)
+    gain2.connect(ctx.destination)
+    
+    osc.start(ctx.currentTime)
+    osc2.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + duration)
+    osc2.stop(ctx.currentTime + duration)
+  }
+
+  // Play all notes at a specific column
+  const playColumn = (colIndex) => {
+    STRINGS.forEach(str => {
+      const fret = tabData[str][colIndex]
+      if (fret && !isNaN(fret) && fret !== 'x' && fret !== 'X') {
+        const freq = getFretFrequency(str, parseInt(fret))
+        playNote(freq)
+      }
+    })
+  }
+
+  // Play the entire tab
+  const playTab = () => {
+    if (isPlaying) {
+      stopPlayback()
+      return
+    }
+
+    setIsPlaying(true)
+    const totalCols = bars * NOTES_PER_BAR
+    const beatDuration = 60 / tempo / 2 // Eighth notes
+    let currentCol = 0
+
+    const playNext = () => {
+      if (currentCol >= totalCols) {
+        stopPlayback()
+        return
+      }
+
+      setPlaybackPosition(currentCol)
+      playColumn(currentCol)
+      currentCol++
+
+      playbackRef.current = setTimeout(playNext, beatDuration * 1000)
+    }
+
+    playNext()
+  }
+
+  const stopPlayback = () => {
+    setIsPlaying(false)
+    setPlaybackPosition(-1)
+    if (playbackRef.current) {
+      clearTimeout(playbackRef.current)
+      playbackRef.current = null
+    }
+  }
+
+  // Load a saved tab
+  const loadTab = async (filename) => {
+    try {
+      const response = await axios.get(`${API_URL}/get-tab/${filename}`)
+      if (response.data.success) {
+        const content = response.data.content
+        parseTabContent(content)
+        showToast(`Loaded ${filename}`, 'success')
+      }
+    } catch (error) {
+      showToast('Error loading tab', 'error')
+    }
+  }
+
+  // Parse tab text content into grid data
+  const parseTabContent = (content) => {
+    const lines = content.trim().split('\n')
+    const newTabData = {}
+    let maxCols = 0
+
+    lines.forEach(line => {
+      const match = line.match(/^([eBGDAE])\|(.+)\|$/)
+      if (match) {
+        const stringName = match[1]
+        const fretData = match[2]
+        
+        // Parse frets (handle -- as empty, -X as single digit)
+        const frets = []
+        let i = 0
+        while (i < fretData.length) {
+          if (fretData[i] === '-') {
+            if (fretData[i + 1] === '-') {
+              frets.push('')
+              i += 2
+            } else if (fretData[i + 1] && fretData[i + 1] !== '-') {
+              frets.push(fretData[i + 1])
+              i += 2
+            } else {
+              i++
+            }
+          } else if (/[0-9]/.test(fretData[i])) {
+            if (/[0-9]/.test(fretData[i + 1])) {
+              frets.push(fretData[i] + fretData[i + 1])
+              i += 2
+            } else {
+              frets.push(fretData[i])
+              i++
+            }
+          } else if (/[xXhHpP\/\\]/.test(fretData[i])) {
+            frets.push(fretData[i])
+            i++
+          } else {
+            i++
+          }
+          // Skip separator dashes
+          if (fretData[i] === '-') i++
+        }
+        
+        newTabData[stringName] = frets
+        maxCols = Math.max(maxCols, frets.length)
+      }
+    })
+
+    // Ensure all strings have same length
+    const newBars = Math.ceil(maxCols / NOTES_PER_BAR)
+    const totalCols = newBars * NOTES_PER_BAR
+
+    STRINGS.forEach(str => {
+      if (!newTabData[str]) {
+        newTabData[str] = Array(totalCols).fill('')
+      } else {
+        while (newTabData[str].length < totalCols) {
+          newTabData[str].push('')
+        }
+      }
+    })
+
+    setBars(newBars)
+    setTabData(newTabData)
+    setMode('grid')
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackRef.current) {
+        clearTimeout(playbackRef.current)
+      }
+    }
+  }, [])
+
   // Render a single bar
   const renderBar = (barIndex) => {
     const startCol = barIndex * NOTES_PER_BAR
@@ -169,18 +371,21 @@ function TabEditor() {
                   const col = startCol + idx
                   const isSelected = selectedCell?.string === stringIdx && selectedCell?.col === col
                   
+                  const isPlayingCol = playbackPosition === col
+                  
                   return (
                     <div
                       key={col}
-                      className="w-8 flex items-center justify-center relative"
+                      className={`w-8 flex items-center justify-center relative transition-colors duration-75 ${isPlayingCol ? 'bg-emerald-500/20' : ''}`}
                     >
                       <input
                         type="text"
                         className={`w-6 h-6 text-center text-xs font-bold bg-transparent border-0 outline-none
                                   ${fret ? 'text-emerald-400' : 'text-transparent'}
                                   ${isSelected ? 'ring-2 ring-emerald-400 rounded bg-slate-700' : ''}
+                                  ${isPlayingCol && fret ? 'text-white scale-110' : ''}
                                   focus:ring-2 focus:ring-emerald-400 focus:rounded focus:bg-slate-700 focus:text-emerald-400
-                                  placeholder:text-slate-600 caret-emerald-400`}
+                                  placeholder:text-slate-600 caret-emerald-400 transition-transform`}
                         value={fret}
                         maxLength={2}
                         onChange={(e) => handleFretChange(str, col, e.target.value)}
@@ -334,6 +539,31 @@ function TabEditor() {
             {/* Bar Controls */}
             <div className="flex gap-2 flex-wrap mt-4">
               <button 
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                  isPlaying 
+                    ? 'text-white bg-red-500 hover:bg-red-600' 
+                    : 'text-white bg-emerald-500 hover:bg-emerald-600'
+                }`}
+                onClick={playTab}
+              >
+                {isPlaying ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    Stop
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Play
+                  </>
+                )}
+              </button>
+              <button 
                 className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-1"
                 onClick={addBar}
               >
@@ -417,14 +647,27 @@ E|--x--x--3--x--|`}
             {savedTabs.map((tab, index) => (
               <div 
                 key={index} 
-                className="px-4 py-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3"
+                className="px-4 py-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center justify-between gap-3"
               >
-                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-slate-700">{tab}</span>
                 </div>
-                <span className="text-sm text-slate-700">{tab}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => loadTab(tab)}
+                    className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Load
+                  </button>
+                </div>
               </div>
             ))}
           </div>
