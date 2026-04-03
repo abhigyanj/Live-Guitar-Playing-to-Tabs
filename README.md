@@ -39,7 +39,8 @@ Live-Guitar-Playing-to-Tabs/
 - Python 3.8+
 - Node.js 18+
 - npm
-- Python audio packages from `requirements.txt` for offline audio-to-tab analysis
+- `requirements.txt` for the lightweight web API
+- `requirements-analysis.txt` for local/offline audio-to-tab analysis
 
 ## Quick Start
 
@@ -61,6 +62,10 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Optional: install heavy audio-analysis dependencies for
+# the Audio-to-Tab Analysis feature when running locally
+pip install -r requirements-analysis.txt
 
 # Run the API server
 python run_backend.py
@@ -92,6 +97,9 @@ python -m venv .venv
 :: Install dependencies
 pip install -r requirements.txt
 
+:: Optional: install heavy audio-analysis dependencies for local analysis
+pip install -r requirements-analysis.txt
+
 :: Run the API server
 python run_backend.py
 ```
@@ -121,6 +129,9 @@ python -m venv .venv
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Optional: install heavy audio-analysis dependencies for local analysis
+pip install -r requirements-analysis.txt
 
 # Run the API server
 python run_backend.py
@@ -194,6 +205,8 @@ This repo is now set up so Vercel can:
 ### Important limitation on Vercel
 
 Tabs and recordings are currently written to local server storage. On Vercel, server storage is temporary, so saved files may disappear between invocations, deployments, or scale events.
+
+The **Audio-to-Tab Analysis** API is also disabled on Vercel because the required Python audio stack (`librosa`, `numpy`, `pretty_midi`, `soundfile`) exceeds Vercel's Python function size limit. That feature still works locally after installing [requirements-analysis.txt](/Users/abhigyanj/Documents/Programming/Live-Guitar-Playing-to-Tabs/requirements-analysis.txt).
 
 For production-grade persistence, replace file writes with a persistent store such as:
 

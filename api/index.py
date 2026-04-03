@@ -147,6 +147,17 @@ def analyze_audio():
     temp_path = None
 
     try:
+        if IS_VERCEL:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Audio-to-tab analysis is disabled on this Vercel deployment because '
+                    'the required Python audio dependencies exceed Vercel function size limits. '
+                    'Run the backend locally with `pip install -r requirements-analysis.txt`, '
+                    'or host the analysis API on a larger Python service.'
+                ),
+            }), 501
+
         payload = request.form if request.files else (request.json or {})
         options = _parse_analysis_options(payload)
 
@@ -187,7 +198,7 @@ def analyze_audio():
                 'success': False,
                 'error': (
                     f'Audio analysis is not available because `{missing_name}` is not installed. '
-                    'Run `pip install -r requirements.txt` in the backend environment.'
+                    'Run `pip install -r requirements-analysis.txt` in the backend environment.'
                 ),
             }), 500
 
