@@ -116,23 +116,37 @@ function HomePage({ onNavigate }) {
                 </div>
 
                 <div className={`mt-5 rounded-[24px] border p-5 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-slate-950/[0.025]'}`}>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_13rem] xl:items-start">
                     <div>
-                      <div className="text-base font-semibold tracking-[-0.03em]">Main tab workspace</div>
-                      <div className={`mt-1 text-sm ${secondaryText}`}>Tempo 120 BPM · 4/4 · 4 bars</div>
-                    </div>
-                    <div className={`rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-emerald-500/16 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
-                      Sync to editor
-                    </div>
-                  </div>
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-base font-semibold tracking-[-0.03em]">Main tab workspace</div>
+                          <div className={`mt-1 text-sm ${secondaryText}`}>Tempo 120 BPM · 4/4 · 4 bars</div>
+                        </div>
+                        <div className={`rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-emerald-500/16 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
+                          Sync to editor
+                        </div>
+                      </div>
 
-                  <div className={`overflow-hidden rounded-[20px] border px-4 py-4 font-mono text-[0.76rem] leading-7 sm:text-sm ${darkMode ? 'border-white/8 bg-slate-950/80 text-sky-200' : 'border-slate-950/7 bg-slate-950 text-sky-200'}`}>
-                    <div>e|--0--2--3--0--|--0--2--3--5--|</div>
-                    <div>B|--1--3--0--1--|--1--3--5--3--|</div>
-                    <div>G|--0--2--0--0--|--2--2--4--2--|</div>
-                    <div>D|--2--0--0--2--|--2--0--0--2--|</div>
-                    <div>A|--3--x--2--3--|--0--0--2--3--|</div>
-                    <div>E|----------------|----------------|</div>
+                      <div className={`overflow-hidden rounded-[20px] border px-4 py-4 font-mono text-[0.76rem] leading-7 sm:text-sm ${darkMode ? 'border-white/8 bg-slate-950/80 text-sky-200' : 'border-slate-950/7 bg-slate-950 text-sky-200'}`}>
+                        <div>e|--0--2--3--0--|--0--2--3--5--|</div>
+                        <div>B|--1--3--0--1--|--1--3--5--3--|</div>
+                        <div>G|--0--2--0--0--|--2--2--4--2--|</div>
+                        <div>D|--2--0--0--2--|--2--0--0--2--|</div>
+                        <div>A|--3--x--2--3--|--0--0--2--3--|</div>
+                        <div>E|----------------|----------------|</div>
+                      </div>
+                    </div>
+
+                    <div className={`rounded-[20px] border px-4 py-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-white/88'}`}>
+                      <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-500">Detected note</div>
+                      <div className="mt-3 text-2xl font-semibold tracking-[-0.05em]">A4</div>
+                      <div className={`mt-1 text-xs ${secondaryText}`}>String 3 · Fret 2</div>
+                      <div className={`mt-4 flex items-center gap-2 text-xs ${secondaryText}`}>
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                        synced live
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-[1.25fr_0.95fr]">
@@ -170,18 +184,12 @@ function HomePage({ onNavigate }) {
                       </div>
                     </div>
                   </div>
+
+                  <div className={`mt-4 rounded-[18px] border px-4 py-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-white/88'}`}>
+                    <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-500">Playback</div>
+                    <div className={`mt-2 text-sm ${mutedText}`}>Looping phrases, slower practice passes, then clean export.</div>
+                  </div>
                 </div>
-              </div>
-
-              <div className={`absolute -right-4 top-28 rounded-[22px] border px-4 py-3 shadow-xl backdrop-blur-xl ${darkMode ? 'border-white/10 bg-slate-950/78' : 'border-white/80 bg-white/84'}`}>
-                <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-500">Detected note</div>
-                <div className="mt-2 text-2xl font-semibold tracking-[-0.05em]">A4</div>
-                <div className={`mt-1 text-xs ${secondaryText}`}>String 3 · Fret 2</div>
-              </div>
-
-              <div className={`absolute -left-4 bottom-8 rounded-[22px] border px-4 py-3 shadow-xl backdrop-blur-xl ${darkMode ? 'border-white/10 bg-slate-950/78' : 'border-white/80 bg-white/84'}`}>
-                <div className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-500">Playback</div>
-                <div className={`mt-2 text-sm ${mutedText}`}>Looping phrases, slower practice passes, then clean export.</div>
               </div>
             </div>
           </div>

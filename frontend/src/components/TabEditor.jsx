@@ -457,8 +457,6 @@ function TabEditor({ darkMode }) {
     detectedNotes, 
     isListening, 
     syncToEditor, 
-    onNotesChanged,
-    getNotesAsTabData,
     currentRecordingBlob,
     currentRecordingUrl,
     recordings,
@@ -516,7 +514,6 @@ function TabEditor({ darkMode }) {
   const [gradualSpeedUp, setGradualSpeedUp] = useState(false)
   const [speedIncrement, setSpeedIncrement] = useState(5) // % increase per loop
   const [metronomeEnabled, setMetronomeEnabled] = useState(false)
-  const [settingLoopPoint, setSettingLoopPoint] = useState(null) // 'A' or 'B' or null
   
   const tabRef = useRef(null)
   const pdfRef = useRef(null)
@@ -615,7 +612,7 @@ function TabEditor({ darkMode }) {
   }
 
   const handleFretChange = (string, col, value) => {
-    if (value !== '' && !/^[0-9]{1,2}$|^[xXhHpP\/\\bBrRvV~]$/.test(value)) return
+    if (value !== '' && !/^[0-9]{1,2}$|^[xXhHpP/\\bBrRvV~]$/.test(value)) return
     if (value !== '' && !isNaN(value) && parseInt(value) > 24) return
 
     setTabData(prev => ({
@@ -719,7 +716,7 @@ function TabEditor({ darkMode }) {
       })
       showToast(`Saved as ${response.data.filename}`, 'success')
       loadSavedTabs()
-    } catch (error) {
+    } catch {
       showToast('Error saving tab', 'error')
     }
   }
@@ -817,34 +814,6 @@ function TabEditor({ darkMode }) {
     showToast('Imported analyzed tab into the editor', 'success')
   }
 
-  // Helper function to convert oklch colors to RGB for PDF export
-  const convertOklchToRgb = (element) => {
-    const clone = element.cloneNode(true)
-    
-    const convertColors = (el) => {
-      const computedStyle = window.getComputedStyle(el)
-      const colorProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor']
-      
-      colorProps.forEach(prop => {
-        const value = computedStyle[prop]
-        if (value && value.includes('oklch')) {
-          // Create a temp element to get the computed RGB value
-          const temp = document.createElement('div')
-          temp.style[prop] = value
-          document.body.appendChild(temp)
-          const rgb = window.getComputedStyle(temp)[prop]
-          document.body.removeChild(temp)
-          el.style[prop] = rgb
-        }
-      })
-      
-      Array.from(el.children).forEach(convertColors)
-    }
-    
-    convertColors(clone)
-    return clone
-  }
-
   // Export to PDF
   const exportToPDF = async () => {
     if (!pdfRef.current) {
@@ -874,7 +843,7 @@ function TabEditor({ darkMode }) {
             if (value) {
               cloned.style[prop] = value
             }
-          } catch (e) {
+          } catch {
             // Ignore errors for unsupported properties
           }
         })
@@ -1163,7 +1132,6 @@ function TabEditor({ darkMode }) {
     } else {
       showToast('Click on a cell to select the loop point', 'error')
     }
-    setSettingLoopPoint(null)
   }
 
   const clearLoopPoints = () => {
@@ -1181,7 +1149,7 @@ function TabEditor({ darkMode }) {
         parseTabContent(content)
         showToast(`Loaded ${filename}`, 'success')
       }
-    } catch (error) {
+    } catch {
       showToast('Error loading tab', 'error')
     }
   }
@@ -1217,7 +1185,7 @@ function TabEditor({ darkMode }) {
               frets.push(fretData[i])
               i++
             }
-          } else if (/[xXhHpP\/\\]/.test(fretData[i])) {
+          } else if (/[xXhHpP/\\]/.test(fretData[i])) {
             frets.push(fretData[i])
             i++
           } else {
@@ -2086,7 +2054,7 @@ function TabEditor({ darkMode }) {
               <button 
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
                   showPracticeMode
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25'
+                    ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
                     : darkMode 
                       ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' 
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -2103,12 +2071,12 @@ function TabEditor({ darkMode }) {
 
             {/* Practice Mode Panel */}
             {showPracticeMode && (
-              <div className={`mt-4 rounded-xl border overflow-hidden transition-all duration-300 ${
-                darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+              <div className={`mt-4 overflow-hidden rounded-[26px] border transition-all duration-300 ${
+                darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-slate-50/90'
               }`}>
                 {/* Panel Header */}
                 <div className={`px-4 py-3 border-b flex items-center gap-2 ${
-                  darkMode ? 'border-slate-700 bg-gradient-to-r from-amber-500/10 to-orange-500/10' : 'border-slate-200 bg-gradient-to-r from-amber-50 to-orange-50'
+                  darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-white/80'
                 }`}>
                   <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
@@ -2123,7 +2091,7 @@ function TabEditor({ darkMode }) {
 
                 <div className="p-4 space-y-4">
                   {/* Speed Control Section */}
-                  <div className={`p-4 rounded-xl ${darkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
+                  <div className={`rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className={`text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2164,7 +2132,7 @@ function TabEditor({ darkMode }) {
                           onClick={() => setPlaybackSpeed(speed)}
                           className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${
                             playbackSpeed === speed
-                              ? 'bg-amber-500 text-white'
+                              ? darkMode ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'
                               : darkMode 
                                 ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' 
                                 : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
@@ -2176,7 +2144,7 @@ function TabEditor({ darkMode }) {
                     </div>
 
                     {/* Gradual Speed Up */}
-                    <div className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                    <div className={`flex items-center justify-between rounded-[18px] p-3 ${darkMode ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -2210,7 +2178,7 @@ function TabEditor({ darkMode }) {
                   </div>
 
                   {/* Loop Control Section */}
-                  <div className={`p-4 rounded-xl ${darkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
+                  <div className={`rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className={`text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2242,17 +2210,17 @@ function TabEditor({ darkMode }) {
                       <button
                         onClick={() => setLoopPoint('A')}
                         disabled={!loopEnabled}
-                        className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center gap-1 ${
+                        className={`p-3 rounded-xl border border-dashed transition-all flex flex-col items-center gap-1 ${
                           loopEnabled
                             ? loopStart !== null
-                              ? 'border-emerald-500 bg-emerald-500/10'
+                              ? 'border-sky-500 bg-sky-500/10'
                               : darkMode 
-                                ? 'border-slate-600 hover:border-amber-500 hover:bg-amber-500/10' 
-                                : 'border-slate-300 hover:border-amber-400 hover:bg-amber-50'
+                                ? 'border-white/10 hover:border-sky-500 hover:bg-sky-500/10' 
+                                : 'border-slate-300 hover:border-sky-400 hover:bg-sky-50'
                             : 'opacity-50 cursor-not-allowed border-slate-600'
                         }`}
                       >
-                        <span className={`text-lg font-bold ${loopStart !== null ? 'text-emerald-400' : 'text-amber-500'}`}>A</span>
+                        <span className={`text-lg font-bold ${loopStart !== null ? 'text-sky-400' : 'text-sky-500'}`}>A</span>
                         <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                           {loopStart !== null ? `Column ${loopStart + 1}` : 'Click to set start'}
                         </span>
@@ -2260,17 +2228,17 @@ function TabEditor({ darkMode }) {
                       <button
                         onClick={() => setLoopPoint('B')}
                         disabled={!loopEnabled || loopStart === null}
-                        className={`p-3 rounded-xl border-2 border-dashed transition-all flex flex-col items-center gap-1 ${
+                        className={`p-3 rounded-xl border border-dashed transition-all flex flex-col items-center gap-1 ${
                           loopEnabled && loopStart !== null
                             ? loopEnd !== null
-                              ? 'border-emerald-500 bg-emerald-500/10'
+                              ? 'border-sky-500 bg-sky-500/10'
                               : darkMode 
-                                ? 'border-slate-600 hover:border-amber-500 hover:bg-amber-500/10' 
-                                : 'border-slate-300 hover:border-amber-400 hover:bg-amber-50'
+                                ? 'border-white/10 hover:border-sky-500 hover:bg-sky-500/10' 
+                                : 'border-slate-300 hover:border-sky-400 hover:bg-sky-50'
                             : 'opacity-50 cursor-not-allowed border-slate-600'
                         }`}
                       >
-                        <span className={`text-lg font-bold ${loopEnd !== null ? 'text-emerald-400' : 'text-amber-500'}`}>B</span>
+                        <span className={`text-lg font-bold ${loopEnd !== null ? 'text-sky-400' : 'text-sky-500'}`}>B</span>
                         <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                           {loopEnd !== null ? `Column ${loopEnd + 1}` : loopStart === null ? 'Set A first' : 'Click to set end'}
                         </span>
@@ -2288,7 +2256,7 @@ function TabEditor({ darkMode }) {
                     )}
 
                     {/* Repeat Count */}
-                    <div className={`mt-3 p-3 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                    <div className={`mt-3 rounded-[18px] p-3 ${darkMode ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
                       <div className="flex items-center justify-between">
                         <label className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                           Repeat count
@@ -2322,7 +2290,7 @@ function TabEditor({ darkMode }) {
                   </div>
 
                   {/* Metronome Section */}
-                  <div className={`p-4 rounded-xl ${darkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
+                  <div className={`rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <h4 className={`text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -2362,8 +2330,8 @@ function TabEditor({ darkMode }) {
                   </div>
 
                   {/* Quick Tip */}
-                  <div className={`p-3 rounded-xl text-xs ${darkMode ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
-                    <strong>💡 Tip:</strong> Select a cell in the tab grid, then click A or B buttons to set loop points. 
+                  <div className={`rounded-[20px] border p-3 text-xs ${darkMode ? 'border-white/8 bg-white/[0.03] text-slate-300' : 'border-slate-200 bg-white text-slate-600'}`}>
+                    <strong className={darkMode ? 'text-white' : 'text-slate-800'}>Tip:</strong> Select a cell in the tab grid, then click A or B buttons to set loop points. 
                     The selected section will repeat during playback.
                   </div>
                 </div>
@@ -2373,10 +2341,10 @@ function TabEditor({ darkMode }) {
         ) : (
           <div className="p-6">
             <textarea
-              className={`w-full h-64 p-4 font-mono text-sm rounded-xl resize-none transition-colors ${
+              className={`w-full h-64 resize-none rounded-[22px] border p-4 font-mono text-sm transition-colors ${
                 darkMode 
-                  ? 'bg-slate-900 text-emerald-400 border-slate-700' 
-                  : 'bg-slate-800 text-emerald-400 border-slate-600'
+                  ? 'border-white/8 bg-slate-950 text-sky-200' 
+                  : 'border-slate-200 bg-slate-50 text-slate-800'
               } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
@@ -2399,8 +2367,8 @@ E|--x--x--3--x--|`}
             <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               Text Preview
             </h3>
-            <pre className={`p-4 rounded-xl font-mono text-sm overflow-x-auto ${
-              darkMode ? 'bg-slate-900 text-emerald-400' : 'bg-slate-800 text-emerald-400'
+            <pre className={`overflow-x-auto rounded-[22px] p-4 font-mono text-sm ${
+              darkMode ? 'border border-white/8 bg-slate-950 text-sky-200' : 'border border-slate-200 bg-slate-50 text-slate-800'
             }`}>
               {mode === 'grid' ? generateTabText() : (textInput || 'No tab data entered')}
             </pre>
@@ -2430,23 +2398,35 @@ E|--x--x--3--x--|`}
             : 'border-white/80 bg-white/78'
         }`}>
           <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-            <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-              Saved Tabs
-            </h2>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                  Saved Tabs
+                </h2>
+                <p className={`mt-1 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Quick access to previous drafts without leaving the studio.
+                </p>
+              </div>
+              <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                darkMode ? 'bg-white/8 text-slate-300' : 'bg-slate-950/[0.05] text-slate-600'
+              }`}>
+                {savedTabs.length} saved
+              </div>
+            </div>
           </div>
-          <div className="p-2">
+          <div className="p-3">
             {savedTabs.map((tab, index) => (
               <div 
                 key={index} 
-                className={`px-4 py-3 rounded-xl transition-colors flex items-center justify-between gap-3 ${
-                  darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
+                className={`flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3 transition-colors ${
+                  darkMode ? 'border-white/8 bg-white/[0.03] hover:bg-white/[0.05]' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    darkMode ? 'bg-indigo-500/20' : 'bg-indigo-100'
+                    darkMode ? 'bg-white/8' : 'bg-slate-950/[0.05]'
                   }`}>
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-5 h-5 ${darkMode ? 'text-sky-300' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                   </div>
@@ -2454,8 +2434,9 @@ E|--x--x--3--x--|`}
                 </div>
                 <button
                   onClick={() => loadTab(tab)}
-                  className="px-4 py-2 text-xs font-medium text-indigo-400 bg-indigo-500/10 rounded-lg 
-                           hover:bg-indigo-500/20 transition-all flex items-center gap-1.5"
+                  className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
+                    darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                  }`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
@@ -2475,15 +2456,15 @@ E|--x--x--3--x--|`}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => { setShowSampleTabs(false); setSampleTabFilter('all'); setSampleTabSearch(''); }}
           />
-          <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl ${
+          <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-[30px] shadow-2xl ${
             darkMode ? 'border border-white/10 bg-slate-950/92' : 'border border-white/80 bg-white/92'
           }`}>
             {/* Modal Header */}
-            <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700' : 'border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50'}`}>
+            <div className={`px-6 py-5 border-b ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-100 bg-slate-50/85'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                    darkMode ? 'bg-amber-500/20' : 'bg-amber-100'
+                    darkMode ? 'bg-white/8' : 'bg-white'
                   }`}>
                     🎸
                   </div>
@@ -2551,8 +2532,8 @@ E|--x--x--3--x--|`}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                         isActive
                           ? darkMode
-                            ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25'
-                            : 'bg-amber-500 text-white shadow-lg shadow-amber-500/25'
+                            ? 'bg-white text-slate-950 shadow-lg shadow-black/20'
+                            : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
                           : darkMode
                             ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2618,10 +2599,10 @@ E|--x--x--3--x--|`}
                       return (
                         <div
                           key={sample.id}
-                          className={`group relative p-4 rounded-xl border transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-xl ${
+                          className={`group relative p-4 rounded-[24px] border transition-all duration-200 cursor-pointer hover:scale-[1.01] ${
                             darkMode 
-                              ? 'bg-slate-700/50 border-slate-600 hover:border-amber-500/50 hover:bg-slate-700' 
-                              : 'bg-white border-slate-200 hover:border-amber-400 hover:shadow-amber-100'
+                              ? 'bg-white/[0.03] border-white/8 hover:border-white/14 hover:bg-white/[0.05]' 
+                              : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/5'
                           }`}
                           onClick={() => loadSampleTab(sample)}
                         >
@@ -2681,8 +2662,8 @@ E|--x--x--3--x--|`}
                           <div className={`mt-3 flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity`}>
                             <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${
                               darkMode 
-                                ? 'text-amber-400' 
-                                : 'text-amber-600'
+                                ? 'text-sky-300' 
+                                : 'text-slate-700'
                             }`}>
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
@@ -2693,10 +2674,10 @@ E|--x--x--3--x--|`}
                           </div>
                           
                           {/* Hover overlay gradient */}
-                          <div className={`absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none ${
+                          <div className={`absolute inset-0 rounded-[24px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none ${
                             darkMode 
-                              ? 'bg-gradient-to-t from-amber-500/10 to-transparent' 
-                              : 'bg-gradient-to-t from-amber-500/5 to-transparent'
+                              ? 'bg-gradient-to-t from-white/[0.04] to-transparent' 
+                              : 'bg-gradient-to-t from-slate-950/[0.03] to-transparent'
                           }`} />
                         </div>
                       )
@@ -2706,14 +2687,16 @@ E|--x--x--3--x--|`}
               })()}
               
               {/* Tips section */}
-              <div className={`mt-6 p-4 rounded-xl flex items-start gap-3 ${darkMode ? 'bg-slate-700/30' : 'bg-gradient-to-r from-amber-50 to-orange-50'}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${darkMode ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
-                  💡
+              <div className={`mt-6 flex items-start gap-3 rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-slate-50'}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${darkMode ? 'bg-white/8' : 'bg-white'}`}>
+                  <svg className={`w-4 h-4 ${darkMode ? 'text-sky-300' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
                 <div>
                   <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>Quick Tips</h4>
                   <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                    After loading a sample, use the <span className="text-emerald-500 font-medium">▶ Play</span> button to hear it.
+                    After loading a sample, use the <span className="font-medium text-sky-500">Play</span> button to hear it.
                     Adjust the tempo slider to practice slower. Use the difficulty badges to find tabs matching your skill level.
                   </p>
                 </div>
@@ -2725,20 +2708,20 @@ E|--x--x--3--x--|`}
 
       {/* Import from Live Transcription Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`max-w-md w-full rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 ${
-            darkMode ? 'bg-slate-800' : 'bg-white'
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className={`max-w-md w-full overflow-hidden rounded-[30px] border shadow-2xl animate-in fade-in zoom-in duration-300 ${
+            darkMode ? 'border-white/10 bg-slate-950/94' : 'border-white/80 bg-white/94'
           }`}>
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 text-white">
+            <div className={`p-6 ${darkMode ? 'border-b border-white/8 bg-white/[0.03] text-white' : 'border-b border-slate-100 bg-slate-50 text-slate-900'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${darkMode ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
+                  <svg className={`w-6 h-6 ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">Tab Imported!</h2>
-                  <p className="text-white/80 text-sm">From audio transcription</p>
+                  <h2 className="text-xl font-bold">Tab imported</h2>
+                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Ready to refine inside the editor</p>
                 </div>
               </div>
             </div>
@@ -2749,7 +2732,7 @@ E|--x--x--3--x--|`}
                 You can now edit, refine, and save the transcription.
               </p>
               
-              <div className={`p-4 rounded-xl mb-4 ${darkMode ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+              <div className={`mb-4 rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-slate-50'}`}>
                 <h4 className="font-medium mb-2 text-sm">Tips:</h4>
                 <ul className="text-sm space-y-1 opacity-75">
                   <li>• Click on any cell to edit the fret number</li>
@@ -2761,10 +2744,9 @@ E|--x--x--3--x--|`}
               
               <button
                 onClick={() => setShowImportModal(false)}
-                className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl
-                         hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg shadow-green-500/25"
+                className="app-button-primary w-full"
               >
-                Got it, let's edit!
+                Continue editing
               </button>
             </div>
           </div>
@@ -2773,21 +2755,15 @@ E|--x--x--3--x--|`}
 
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-2xl text-white font-medium 
-          flex items-center gap-2 animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+        <div className={`fixed bottom-6 right-6 flex items-center gap-3 rounded-[20px] border px-5 py-3 font-medium shadow-2xl backdrop-blur-xl
+          animate-in slide-in-from-bottom-5 fade-in duration-300 ${
           toast.type === 'success' 
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-600' 
-            : 'bg-gradient-to-r from-red-500 to-rose-600'
+            ? darkMode ? 'border-emerald-500/20 bg-slate-950/90 text-white' : 'border-emerald-200 bg-white/92 text-slate-900'
+            : darkMode ? 'border-red-500/20 bg-slate-950/90 text-white' : 'border-red-200 bg-white/92 text-slate-900'
         }`}>
-          {toast.type === 'success' ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          )}
+          <span className={`h-2.5 w-2.5 rounded-full ${
+            toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+          }`} />
           {toast.message}
         </div>
       )}

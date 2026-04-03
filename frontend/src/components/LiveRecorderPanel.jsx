@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useAudioContext } from '../contexts/AudioContext'
 import { GRID_DIVISIONS, TIME_SIGNATURES } from '../utils/quantization'
 
@@ -37,7 +37,6 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
     settings,
     startListening,
     stopListening,
-    clearNotes,
     updateSettings,
     // Recording
     recordingTime,
@@ -76,7 +75,7 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
       } else {
         showToast('Error saving recording', 'error')
       }
-    } catch (err) {
+    } catch {
       showToast('Error saving recording', 'error')
     }
     setIsSaving(false)
@@ -191,8 +190,7 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
             ) : (
               <button
                 onClick={stopListening}
-                className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white font-medium rounded-lg text-sm flex items-center gap-1.5
-                         hover:from-red-600 hover:to-rose-700 transition-all duration-200"
+                className="flex items-center gap-1.5 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-red-600"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -219,9 +217,12 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
 
         {/* Toast */}
         {toast && (
-          <div className={`absolute bottom-4 right-4 px-4 py-2 rounded-lg text-sm font-medium z-50 ${
-            toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          <div className={`absolute bottom-4 right-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-2 text-sm font-medium backdrop-blur-xl ${
+            toast.type === 'success'
+              ? darkMode ? 'border-emerald-500/20 bg-slate-950/92 text-white' : 'border-emerald-200 bg-white/92 text-slate-900'
+              : darkMode ? 'border-red-500/20 bg-slate-950/92 text-white' : 'border-red-200 bg-white/92 text-slate-900'
           }`}>
+            <span className={`h-2.5 w-2.5 rounded-full ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
             {toast.message}
           </div>
         )}
@@ -476,8 +477,8 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
             <div className={`text-center p-4 rounded-xl ${
               isListening 
                 ? currentNote 
-                  ? 'bg-gradient-to-br from-green-500/10 to-emerald-600/10 border border-green-500/50' 
-                  : 'bg-gradient-to-br from-indigo-500/10 to-purple-600/10 border border-indigo-500/30'
+                  ? darkMode ? 'border border-emerald-500/30 bg-emerald-500/10' : 'border border-emerald-200 bg-emerald-50'
+                  : darkMode ? 'border border-white/8 bg-white/[0.03]' : 'border border-slate-200 bg-slate-50'
                 : darkMode 
                   ? 'bg-slate-700/50 border border-slate-600' 
                   : 'bg-slate-100 border border-slate-200'
@@ -520,13 +521,15 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
 
         {/* Recording playback */}
         {!isListening && currentRecordingUrl && (
-          <div className={`mt-4 p-3 rounded-xl ${darkMode ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+          <div className={`mt-4 rounded-[20px] border p-3 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-slate-50'}`}>
             <audio controls src={currentRecordingUrl} className="w-full h-8" />
             <div className="flex gap-2 mt-2">
               <button
                 onClick={handleSaveRecording}
                 disabled={isSaving}
-                className="flex-1 px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded text-xs"
+                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium ${
+                  darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                }`}
               >
                 {isSaving ? 'Saving...' : 'Save Recording'}
               </button>
@@ -547,8 +550,9 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
           {!isListening ? (
             <button
               onClick={() => startListening(settings.enableRecording)}
-              className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg text-sm
-                       hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center gap-2"
+              className={`flex items-center gap-2 rounded-lg px-6 py-2 text-sm font-medium transition-all duration-200 ${
+                darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+              }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -559,8 +563,7 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
           ) : (
             <button
               onClick={stopListening}
-              className="px-6 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white font-medium rounded-lg text-sm
-                       hover:from-red-600 hover:to-rose-700 transition-all duration-200 flex items-center gap-2"
+              className="flex items-center gap-2 rounded-lg bg-red-500 px-6 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-red-600"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -591,9 +594,12 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
 
       {/* Toast */}
       {toast && (
-        <div className={`absolute bottom-4 right-4 px-4 py-2 rounded-lg text-sm font-medium z-50 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        <div className={`absolute bottom-4 right-4 z-50 flex items-center gap-2 rounded-[18px] border px-4 py-2 text-sm font-medium backdrop-blur-xl ${
+          toast.type === 'success'
+            ? darkMode ? 'border-emerald-500/20 bg-slate-950/92 text-white' : 'border-emerald-200 bg-white/92 text-slate-900'
+            : darkMode ? 'border-red-500/20 bg-slate-950/92 text-white' : 'border-red-200 bg-white/92 text-slate-900'
         }`}>
+          <span className={`h-2.5 w-2.5 rounded-full ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
           {toast.message}
         </div>
       )}
