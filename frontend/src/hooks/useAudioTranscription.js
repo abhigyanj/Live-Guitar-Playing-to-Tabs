@@ -2,8 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { AudioTranscriber } from '../utils/pitchDetection'
 import { QuantizationEngine, RhythmAnalyzer, GRID_DIVISIONS, TIME_SIGNATURES } from '../utils/quantization'
 import axios from 'axios'
-
-const API_URL = 'http://127.0.0.1:5000'
+import { API_URL } from '../config/api'
 
 /**
  * React hook for real-time audio transcription with recording and quantization

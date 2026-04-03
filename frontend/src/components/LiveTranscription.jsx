@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAudioTranscription } from '../hooks/useAudioTranscription'
 import { GRID_DIVISIONS, TIME_SIGNATURES } from '../utils/quantization'
+import { API_URL } from '../config/api'
 
 const STRINGS = ['e', 'B', 'G', 'D', 'A', 'E']
-const API_URL = 'http://127.0.0.1:5000'
 
 // Frequency to color mapping for visual feedback
 const getFrequencyColor = (frequency) => {

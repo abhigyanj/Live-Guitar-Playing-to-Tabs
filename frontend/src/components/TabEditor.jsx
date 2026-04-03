@@ -4,8 +4,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import LiveRecorderPanel from './LiveRecorderPanel'
 import { useAudioContext } from '../contexts/AudioContext'
-
-const API_URL = 'http://127.0.0.1:5000'
+import { API_URL } from '../config/api'
 
 const STRINGS = ['e', 'B', 'G', 'D', 'A', 'E']
 const INITIAL_BARS = 4
