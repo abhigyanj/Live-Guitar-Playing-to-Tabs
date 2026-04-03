@@ -450,6 +450,27 @@ const DIFFICULTY_CONFIG = {
   advanced: { label: 'Advanced', color: 'red', icon: '●●●' },
 }
 
+const STUDIO_PANELS = [
+  {
+    id: 'compose',
+    label: 'Compose',
+    title: 'Write and capture in one place',
+    body: 'Keep the editor central, then use live input when ideas arrive faster than typing.',
+  },
+  {
+    id: 'analyze',
+    label: 'Analyze',
+    title: 'Turn recordings into editable structure',
+    body: 'Run saved or current takes through the analysis pipeline, inspect the output, then import only when it looks useful.',
+  },
+  {
+    id: 'library',
+    label: 'Library',
+    title: 'Reload earlier drafts quickly',
+    body: 'Open saved tabs as a lightweight library instead of treating the studio like a giant dashboard.',
+  },
+]
+
 function TabEditor({ darkMode }) {
   // Audio context for live recording integration
   const audioContext = useAudioContext()
@@ -498,6 +519,8 @@ function TabEditor({ darkMode }) {
   })
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
+  const [activeStudioPanel, setActiveStudioPanel] = useState('compose')
+  const [showReferencePreview, setShowReferencePreview] = useState(false)
   
   // Live recorder panel state
   const [showLivePanel, setShowLivePanel] = useState(false)
@@ -810,6 +833,7 @@ function TabEditor({ darkMode }) {
       setTempo(Math.round(analysisResult.summary.bpm))
     }
     setSectionName('Audio Transcription')
+    setActiveStudioPanel('compose')
     setShowImportModal(true)
     showToast('Imported analyzed tab into the editor', 'success')
   }
@@ -1147,6 +1171,7 @@ function TabEditor({ darkMode }) {
       if (response.data.success) {
         const content = response.data.content
         parseTabContent(content)
+        setActiveStudioPanel('compose')
         showToast(`Loaded ${filename}`, 'success')
       }
     } catch {
@@ -1220,6 +1245,7 @@ function TabEditor({ darkMode }) {
     parseTabContent(sample.tab)
     setTempo(sample.tempo)
     setSectionName(sample.section)
+    setActiveStudioPanel('compose')
     setShowSampleTabs(false)
     setSampleTabFilter('all')
     setSampleTabSearch('')
@@ -1354,6 +1380,7 @@ function TabEditor({ darkMode }) {
   }
 
   const totalColumns = bars * NOTES_PER_BAR
+  const currentStudioPanel = STUDIO_PANELS.find((panel) => panel.id === activeStudioPanel) ?? STUDIO_PANELS[0]
   const studioSummary = [
     { label: 'Bars', value: bars },
     { label: 'Columns', value: totalColumns },
@@ -1445,330 +1472,434 @@ function TabEditor({ darkMode }) {
         </div>
       </section>
 
-      {/* Live Recorder Panel - Collapsible */}
-      <div className={`transition-all duration-300 ${showLivePanel ? 'mb-4' : ''}`}>
-        {showLivePanel ? (
-          <LiveRecorderPanel 
-            darkMode={darkMode} 
-            expanded={true}
-            onToggleExpand={() => setShowLivePanel(false)}
-          />
-        ) : (
-          <LiveRecorderPanel 
-            darkMode={darkMode} 
-            expanded={false}
-            onToggleExpand={() => setShowLivePanel(true)}
-          />
-        )}
-      </div>
-
-      {/* Live Recording Status Bar */}
-      {isListening && syncToEditor && (
-        <div className={`flex items-center gap-3 rounded-[24px] px-4 py-3 backdrop-blur-xl ${
-          darkMode 
-            ? 'border border-emerald-500/20 bg-emerald-500/10' 
-            : 'border border-emerald-200 bg-emerald-50/90'
-        }`}>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
-              Live recording to tab
-            </span>
-          </div>
-          <span className={`text-xs ${darkMode ? 'text-green-500/70' : 'text-green-600/70'}`}>
-            Insert position: column {liveInsertPosition + 1} • {detectedNotes.length} notes captured
-          </span>
-          <button
-            onClick={() => setLiveInsertPosition(0)}
-            className={`ml-auto text-xs px-2 py-1 rounded ${
-              darkMode 
-                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                : 'bg-green-100 text-green-700 hover:bg-green-200'
-            }`}
-          >
-            Reset position
-          </button>
-        </div>
-      )}
-
-      {/* Offline Analysis Panel */}
-      <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
+      <section className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
         darkMode
           ? 'border-white/10 bg-slate-950/70 shadow-black/25'
           : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
-        <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                Audio-to-Tab Analysis
-              </h3>
-              <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                Runs the Python quantized pitch pipeline on a recording, then lets you import the result into the editor.
+        <div className={`border-b px-6 py-5 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="app-kicker">Studio flow</div>
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">Work in one focused lane at a time.</h2>
+              <p className={`mt-3 text-sm leading-7 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                {currentStudioPanel.title}. {currentStudioPanel.body}
               </p>
             </div>
-            <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-              darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'
-            }`}>
-              Editor import uses an eighth-note grid
+            <div className={`inline-flex flex-wrap items-center gap-2 rounded-full p-1 ${darkMode ? 'bg-white/6' : 'bg-slate-950/[0.04]'}`}>
+              {STUDIO_PANELS.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  onClick={() => setActiveStudioPanel(panel.id)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                    activeStudioPanel === panel.id
+                      ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                      : darkMode ? 'text-slate-300 hover:bg-white/8 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                  }`}
+                >
+                  {panel.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setAnalysisSource('current')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                analysisSource === 'current'
-                  ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
-                  : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Current recording
-            </button>
-            <button
-              onClick={() => {
-                setAnalysisSource('saved')
-                loadRecordings()
-              }}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                analysisSource === 'saved'
-                  ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
-                  : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Saved recording
-            </button>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  BPM
-                </label>
-                <input
-                  type="number"
-                  min="20"
-                  max="300"
-                  value={analysisSettings.bpm}
-                  onChange={(e) => updateAnalysisSetting('bpm', Math.max(20, Math.min(300, parseInt(e.target.value || '120', 10))))}
-                  className={`w-full px-3 py-2 rounded-lg text-sm ${
-                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
-                  } border`}
-                />
+        <div className="p-6">
+          {activeStudioPanel === 'compose' && (
+            <div className="space-y-4">
+              <div className={`transition-all duration-300 ${showLivePanel ? 'mb-4' : ''}`}>
+                {showLivePanel ? (
+                  <LiveRecorderPanel 
+                    darkMode={darkMode} 
+                    expanded={true}
+                    onToggleExpand={() => setShowLivePanel(false)}
+                  />
+                ) : (
+                  <LiveRecorderPanel 
+                    darkMode={darkMode} 
+                    expanded={false}
+                    onToggleExpand={() => setShowLivePanel(true)}
+                  />
+                )}
               </div>
 
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Onset threshold
-                </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  max="0.3"
-                  step="0.01"
-                  value={analysisSettings.delta}
-                  onChange={(e) => updateAnalysisSetting('delta', parseFloat(e.target.value || '0.07'))}
-                  className={`w-full px-3 py-2 rounded-lg text-sm ${
-                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
-                  } border`}
-                />
-              </div>
-
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Tempo smoothing
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="15"
-                  step="2"
-                  value={analysisSettings.smooth}
-                  onChange={(e) => updateAnalysisSetting('smooth', parseInt(e.target.value || '7', 10))}
-                  className={`w-full px-3 py-2 rounded-lg text-sm ${
-                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
-                  } border`}
-                />
-              </div>
-
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Max drift %
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="25"
-                  step="0.5"
-                  value={analysisSettings.drift}
-                  onChange={(e) => updateAnalysisSetting('drift', parseFloat(e.target.value || '8'))}
-                  className={`w-full px-3 py-2 rounded-lg text-sm ${
-                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
-                  } border`}
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={analyzeAudioToTab}
-              disabled={isAnalyzingAudio}
-              className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
-                isAnalyzingAudio
-                  ? darkMode ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/12 hover:bg-slate-800'
-              }`}
-            >
-              {isAnalyzingAudio ? 'Analyzing...' : 'Analyze audio'}
-            </button>
-          </div>
-
-          {analysisSource === 'current' ? (
-            <div className={`px-4 py-3 rounded-xl text-sm ${
-              darkMode ? 'bg-slate-900/50 text-slate-300 border border-slate-700' : 'bg-slate-50 text-slate-600 border border-slate-200'
-            }`}>
-              {currentRecordingUrl
-                ? 'The current in-browser recording is ready to analyze.'
-                : 'Stop a live recording first if you want to analyze the current take without saving it.'}
-            </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-              <div>
-                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Saved recording
-                </label>
-                <select
-                  value={selectedAnalysisRecording}
-                  onChange={(e) => setSelectedAnalysisRecording(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg text-sm ${
-                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
-                  } border`}
-                >
-                  {recordings.length === 0 ? (
-                    <option value="">No saved recordings</option>
-                  ) : (
-                    recordings.map((filename) => (
-                      <option key={filename} value={filename}>{filename}</option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <button
-                onClick={loadRecordings}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Refresh list
-              </button>
+              {isListening && syncToEditor && (
+                <div className={`flex items-center gap-3 rounded-[24px] px-4 py-3 backdrop-blur-xl ${
+                  darkMode 
+                    ? 'border border-emerald-500/20 bg-emerald-500/10' 
+                    : 'border border-emerald-200 bg-emerald-50/90'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
+                      Live recording to tab
+                    </span>
+                  </div>
+                  <span className={`text-xs ${darkMode ? 'text-green-500/70' : 'text-green-600/70'}`}>
+                    Insert position: column {liveInsertPosition + 1} • {detectedNotes.length} notes captured
+                  </span>
+                  <button
+                    onClick={() => setLiveInsertPosition(0)}
+                    className={`ml-auto text-xs px-2 py-1 rounded ${
+                      darkMode 
+                        ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    Reset position
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {analysisResult && (
-            <div className={`rounded-2xl border overflow-hidden ${
-              darkMode ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'
+          {activeStudioPanel === 'analyze' && (
+            <div className={`overflow-hidden rounded-[26px] border transition-colors duration-300 ${
+              darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-white/82'
             }`}>
-              <div className={`px-5 py-4 border-b flex items-center justify-between gap-4 flex-wrap ${
-                darkMode ? 'border-emerald-500/20' : 'border-emerald-200'
-              }`}>
-                <div>
-                  <h4 className={`font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                    Analysis Ready
-                  </h4>
-                  <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                    Source: {analysisResult.sourceFilename}
-                  </p>
+              <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      Audio-to-Tab Analysis
+                    </h3>
+                    <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Runs the Python quantized pitch pipeline on a recording, then lets you import the result into the editor.
+                    </p>
+                  </div>
+                  <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                    darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    Editor import uses an eighth-note grid
+                  </div>
                 </div>
-                <a
-                  href={getApiAssetUrl(analysisResult.midiUrl)}
-                  download={analysisResult.midiFilename}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-slate-950 text-white hover:bg-slate-800'
-                  }`}
-                >
-                  Download MIDI
-                </a>
               </div>
 
-              <div className="p-5 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Notes</div>
-                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                      {analysisResult.summary.noteCount}
-                    </div>
-                  </div>
-                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Mapped</div>
-                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                      {analysisResult.summary.mappedNoteCount}
-                    </div>
-                  </div>
-                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>BPM</div>
-                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                      {Math.round(analysisResult.summary.bpm)}
-                    </div>
-                  </div>
-                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Shift</div>
-                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                      {analysisResult.summary.averageQuantizationShiftMs} ms
-                    </div>
-                  </div>
-                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Duration</div>
-                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                      {analysisResult.summary.durationSeconds}s
-                    </div>
-                  </div>
+              <div className="p-6 space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setAnalysisSource('current')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      analysisSource === 'current'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                        : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Current recording
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAnalysisSource('saved')
+                      loadRecordings()
+                    }}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      analysisSource === 'saved'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                        : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Saved recording
+                  </button>
                 </div>
 
-                <div className={`rounded-xl p-4 ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
-                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                    First detected notes
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        BPM
+                      </label>
+                      <input
+                        type="number"
+                        min="20"
+                        max="300"
+                        value={analysisSettings.bpm}
+                        onChange={(e) => updateAnalysisSetting('bpm', Math.max(20, Math.min(300, parseInt(e.target.value || '120', 10))))}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                        } border`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Onset threshold
+                      </label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        max="0.3"
+                        step="0.01"
+                        value={analysisSettings.delta}
+                        onChange={(e) => updateAnalysisSetting('delta', parseFloat(e.target.value || '0.07'))}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                        } border`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Tempo smoothing
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="15"
+                        step="2"
+                        value={analysisSettings.smooth}
+                        onChange={(e) => updateAnalysisSetting('smooth', parseInt(e.target.value || '7', 10))}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                        } border`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Max drift %
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="25"
+                        step="0.5"
+                        value={analysisSettings.drift}
+                        onChange={(e) => updateAnalysisSetting('drift', parseFloat(e.target.value || '8'))}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                        } border`}
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {analysisResult.notes.slice(0, 6).map((note) => (
-                      <div
-                        key={`${note.index}-${note.startTime}`}
-                        className={`px-3 py-2 rounded-lg text-sm ${
-                          darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-600'
+
+                  <button
+                    onClick={analyzeAudioToTab}
+                    disabled={isAnalyzingAudio}
+                    className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
+                      isAnalyzingAudio
+                        ? darkMode ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/12 hover:bg-slate-800'
+                    }`}
+                  >
+                    {isAnalyzingAudio ? 'Analyzing...' : 'Analyze audio'}
+                  </button>
+                </div>
+
+                {analysisSource === 'current' ? (
+                  <div className={`px-4 py-3 rounded-xl text-sm ${
+                    darkMode ? 'bg-slate-900/50 text-slate-300 border border-slate-700' : 'bg-slate-50 text-slate-600 border border-slate-200'
+                  }`}>
+                    {currentRecordingUrl
+                      ? 'The current in-browser recording is ready to analyze.'
+                      : 'Stop a live recording first if you want to analyze the current take without saving it.'}
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Saved recording
+                      </label>
+                      <select
+                        value={selectedAnalysisRecording}
+                        onChange={(e) => setSelectedAnalysisRecording(e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                        } border`}
+                      >
+                        {recordings.length === 0 ? (
+                          <option value="">No saved recordings</option>
+                        ) : (
+                          recordings.map((filename) => (
+                            <option key={filename} value={filename}>{filename}</option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                    <button
+                      onClick={loadRecordings}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Refresh list
+                    </button>
+                  </div>
+                )}
+
+                {analysisResult && (
+                  <div className={`rounded-2xl border overflow-hidden ${
+                    darkMode ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'
+                  }`}>
+                    <div className={`px-5 py-4 border-b flex items-center justify-between gap-4 flex-wrap ${
+                      darkMode ? 'border-emerald-500/20' : 'border-emerald-200'
+                    }`}>
+                      <div>
+                        <h4 className={`font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          Analysis Ready
+                        </h4>
+                        <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                          Source: {analysisResult.sourceFilename}
+                        </p>
+                      </div>
+                      <a
+                        href={getApiAssetUrl(analysisResult.midiUrl)}
+                        download={analysisResult.midiFilename}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-slate-950 text-white hover:bg-slate-800'
                         }`}
                       >
-                        <span className="font-medium">{note.noteName}</span>
-                        {note.position ? ` on ${note.position.string} fret ${note.position.fret}` : ' (unmapped)'}
-                        <span className="opacity-70"> at {note.quantizedStartTime.toFixed(2)}s</span>
+                        Download MIDI
+                      </a>
+                    </div>
+
+                    <div className="p-5 space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                          <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Notes</div>
+                          <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {analysisResult.summary.noteCount}
+                          </div>
+                        </div>
+                        <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                          <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Mapped</div>
+                          <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {analysisResult.summary.mappedNoteCount}
+                          </div>
+                        </div>
+                        <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                          <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>BPM</div>
+                          <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {Math.round(analysisResult.summary.bpm)}
+                          </div>
+                        </div>
+                        <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                          <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Shift</div>
+                          <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {analysisResult.summary.averageQuantizationShiftMs} ms
+                          </div>
+                        </div>
+                        <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                          <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Duration</div>
+                          <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {analysisResult.summary.durationSeconds}s
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`rounded-xl p-4 ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                        <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                          First detected notes
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {analysisResult.notes.slice(0, 6).map((note) => (
+                            <div
+                              key={`${note.index}-${note.startTime}`}
+                              className={`px-3 py-2 rounded-lg text-sm ${
+                                darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-600'
+                              }`}
+                            >
+                              <span className="font-medium">{note.noteName}</span>
+                              {note.position ? ` on ${note.position.string} fret ${note.position.fret}` : ' (unmapped)'}
+                              <span className="opacity-70"> at {note.quantizedStartTime.toFixed(2)}s</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={importAnalyzedTab}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          Import into editor
+                        </button>
+                        <button
+                          onClick={() => setAnalysisResult(null)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          Clear result
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeStudioPanel === 'library' && (
+            <div className={`overflow-hidden rounded-[26px] border transition-colors duration-300 ${
+              darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-white/82'
+            }`}>
+              <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      Saved Tabs
+                    </h3>
+                    <p className={`mt-1 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Reload earlier drafts without leaving the studio.
+                    </p>
+                  </div>
+                  <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                    darkMode ? 'bg-white/8 text-slate-300' : 'bg-slate-950/[0.05] text-slate-600'
+                  }`}>
+                    {savedTabs.length} saved
+                  </div>
+                </div>
+              </div>
+              <div className="p-3">
+                {savedTabs.length === 0 ? (
+                  <div className={`rounded-[22px] border px-5 py-8 text-center ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>No saved tabs yet</div>
+                    <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Save the current tab once and it will show up here as your lightweight studio library.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedTabs.map((tab, index) => (
+                      <div 
+                        key={index} 
+                        className={`flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3 transition-colors ${
+                          darkMode ? 'border-white/8 bg-white/[0.03] hover:bg-white/[0.05]' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            darkMode ? 'bg-white/8' : 'bg-slate-950/[0.05]'
+                          }`}>
+                            <svg className={`w-5 h-5 ${darkMode ? 'text-sky-300' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                          </div>
+                          <span className={`text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{tab}</span>
+                        </div>
+                        <button
+                          onClick={() => loadTab(tab)}
+                          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
+                            darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                          </svg>
+                          Load
+                        </button>
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={importAnalyzedTab}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                      darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    Import into editor
-                  </button>
-                  <button
-                    onClick={() => setAnalysisResult(null)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    Clear result
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Main Editor Card */}
       <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
@@ -1777,123 +1908,198 @@ function TabEditor({ darkMode }) {
           : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
         {/* Header Controls */}
-        <div className={`px-6 py-4 border-b flex items-center justify-between flex-wrap gap-4 ${
-          darkMode ? 'border-slate-700' : 'border-slate-100'
-        }`}>
-          <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-            Tab Editor
-          </h2>
-          
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Sample Tabs Button */}
-            <button
-              onClick={() => setShowSampleTabs(true)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
-              </svg>
-              Sample Tabs
-            </button>
-            {/* Section Name */}
-            <div className="flex items-center gap-2">
-              <label className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Section:</label>
-              <input
-                type="text"
-                className={`w-28 px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  darkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white focus:ring-indigo-500' 
-                    : 'bg-white border-slate-200 text-slate-800 focus:ring-indigo-500'
-                } border focus:outline-none focus:ring-2`}
-                value={sectionName}
-                onChange={(e) => setSectionName(e.target.value)}
-              />
-            </div>
-            
-            {/* Tempo */}
-            <div className="flex items-center gap-2">
-              <label className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>♩ =</label>
-              <input
-                type="number"
-                className={`w-16 px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  darkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white border-slate-200 text-slate-800'
-                } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                value={tempo}
-                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
-                min={40}
-                max={240}
-              />
+        <div className={`border-b px-6 py-5 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div className="max-w-3xl">
+              <div className="app-kicker">Composition surface</div>
+              <h2 className={`mt-3 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                Keep the notation clear. Pull in extra tools only when they help.
+              </h2>
+              <p className={`mt-3 text-sm leading-7 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                Set the section details once, choose grid or text entry, then reveal practice controls or the text reference only when you need them.
+              </p>
             </div>
 
-            {/* Time Signature */}
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                className={`w-10 px-1 py-1.5 text-sm text-center rounded-lg transition-colors ${
-                  darkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white border-slate-200 text-slate-800'
-                } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                value={timeSignature.top}
-                onChange={(e) => setTimeSignature(prev => ({ ...prev, top: parseInt(e.target.value) || 4 }))}
-                min={1}
-                max={16}
-              />
-              <span className={darkMode ? 'text-slate-500' : 'text-slate-400'}>/</span>
-              <input
-                type="number"
-                className={`w-10 px-1 py-1.5 text-sm text-center rounded-lg transition-colors ${
-                  darkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white border-slate-200 text-slate-800'
-                } border focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                value={timeSignature.bottom}
-                onChange={(e) => setTimeSignature(prev => ({ ...prev, bottom: parseInt(e.target.value) || 4 }))}
-                min={1}
-                max={16}
-              />
-            </div>
-
-            {/* Mode Toggle */}
-            <div className={`flex p-1 rounded-lg ${darkMode ? 'bg-slate-700' : 'bg-slate-100'}`}>
-              <button 
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
-                  mode === 'grid' 
-                    ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm' 
-                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
+            <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+              <button
+                onClick={saveTab}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                  darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800'
                 }`}
-                onClick={() => setMode('grid')}
               >
-                Grid
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                Save tab
               </button>
-              <button 
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
-                  mode === 'text' 
-                    ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm' 
-                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
+              <button
+                onClick={() => setShowSampleTabs(true)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                  darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-white text-slate-900 hover:bg-slate-100'
                 }`}
-                onClick={() => setMode('text')}
               >
-                Text
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+                </svg>
+                Sample tabs
               </button>
             </div>
+          </div>
 
-            {/* Technique Hints Toggle */}
-            <button
-              onClick={() => setShowTechniqueHints(!showTechniqueHints)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                showTechniqueHints
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'
-              }`}
-              title="Toggle technique symbols"
-            >
-              ♪ Hints
-            </button>
+          <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <div className={`rounded-[24px] border p-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-white/82'}`}>
+              <div className={`text-[0.72rem] font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                Tab details
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="sm:col-span-2 xl:col-span-1">
+                  <label className={`block text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Section</label>
+                  <input
+                    type="text"
+                    className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                      darkMode ? 'border-slate-600 bg-slate-700 text-white focus:ring-indigo-500' : 'border-slate-200 bg-white text-slate-800 focus:ring-indigo-500'
+                    } focus:outline-none focus:ring-2`}
+                    value={sectionName}
+                    onChange={(e) => setSectionName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Tempo</label>
+                  <div className="relative mt-1">
+                    <input
+                      type="number"
+                      className={`w-full rounded-xl border px-3 py-2.5 pr-12 text-sm transition-colors ${
+                        darkMode ? 'border-slate-600 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-800'
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      value={tempo}
+                      onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                      min={40}
+                      max={240}
+                    />
+                    <span className={`pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      BPM
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Time signature</label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="number"
+                      className={`w-full rounded-xl border px-3 py-2.5 text-center text-sm transition-colors ${
+                        darkMode ? 'border-slate-600 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-800'
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      value={timeSignature.top}
+                      onChange={(e) => setTimeSignature(prev => ({ ...prev, top: parseInt(e.target.value) || 4 }))}
+                      min={1}
+                      max={16}
+                    />
+                    <span className={darkMode ? 'text-slate-500' : 'text-slate-400'}>/</span>
+                    <input
+                      type="number"
+                      className={`w-full rounded-xl border px-3 py-2.5 text-center text-sm transition-colors ${
+                        darkMode ? 'border-slate-600 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-800'
+                      } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      value={timeSignature.bottom}
+                      onChange={(e) => setTimeSignature(prev => ({ ...prev, bottom: parseInt(e.target.value) || 4 }))}
+                      min={1}
+                      max={16}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Bars</label>
+                  <div className={`mt-1 flex items-center justify-between rounded-xl border px-2 py-2 ${
+                    darkMode ? 'border-slate-600 bg-slate-700' : 'border-slate-200 bg-white'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={removeBar}
+                      disabled={bars <= 1}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
+                        bars <= 1
+                          ? darkMode ? 'cursor-not-allowed text-slate-500' : 'cursor-not-allowed text-slate-300'
+                          : darkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      −
+                    </button>
+                    <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>{bars}</span>
+                    <button
+                      type="button"
+                      onClick={addBar}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
+                        darkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={`rounded-[24px] border p-4 ${darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-200 bg-white/82'}`}>
+              <div className={`text-[0.72rem] font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                View and helpers
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className={`flex rounded-xl p-1 ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                  <button 
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                      mode === 'grid'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm'
+                        : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                    onClick={() => setMode('grid')}
+                  >
+                    Grid
+                  </button>
+                  <button 
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                      mode === 'text'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm'
+                        : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                    onClick={() => setMode('text')}
+                  >
+                    Text
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setShowTechniqueHints(!showTechniqueHints)}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition-all ${
+                    showTechniqueHints
+                      ? 'border border-emerald-500/30 bg-emerald-500/20 text-emerald-400'
+                      : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                  title="Toggle technique symbols"
+                >
+                  {showTechniqueHints ? 'Technique hints on' : 'Technique hints off'}
+                </button>
+
+                <button
+                  onClick={() => setShowPracticeMode(!showPracticeMode)}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition-all ${
+                    showPracticeMode
+                      ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm'
+                      : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {showPracticeMode ? 'Hide practice' : 'Open practice'}
+                </button>
+
+              </div>
+              <p className={`mt-4 text-sm leading-7 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                {mode === 'grid'
+                  ? 'Grid mode keeps the notation front and center. A lighter text reference sits below the editor when you want a quick copyable version.'
+                  : 'Text mode becomes the raw ASCII editing surface, so the extra reference preview can stay out of the way.'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1967,7 +2173,7 @@ function TabEditor({ darkMode }) {
               <button 
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg ${
                   isPlaying 
-                    ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-red-500/25 hover:shadow-red-500/40' 
+                    ? 'bg-rose-600 text-white shadow-rose-500/20 hover:bg-rose-500' 
                     : darkMode ? 'bg-white text-slate-950 shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-slate-900/10 hover:bg-slate-800'
                 }`}
                 onClick={playTab}
@@ -1978,9 +2184,9 @@ function TabEditor({ darkMode }) {
                       <rect x="6" y="4" width="4" height="16" rx="1"/>
                       <rect x="14" y="4" width="4" height="16" rx="1"/>
                     </svg>
-                    Stop
+                    Stop playback
                     {loopEnabled && currentRepeat > 0 && (
-                      <span className="text-xs opacity-75">({currentRepeat})</span>
+                      <span className="text-xs opacity-75">Loop {currentRepeat}</span>
                     )}
                   </>
                 ) : (
@@ -1993,7 +2199,7 @@ function TabEditor({ darkMode }) {
                       <span className="text-xs opacity-75">@{playbackSpeed}%</span>
                     )}
                     {loopEnabled && loopStart !== null && loopEnd !== null && (
-                      <span className="text-xs opacity-75">🔁</span>
+                      <span className="text-xs opacity-75">Loop active</span>
                     )}
                   </>
                 )}
@@ -2012,34 +2218,6 @@ function TabEditor({ darkMode }) {
                 </svg>
                 {isExporting ? 'Exporting...' : 'Export PDF'}
               </button>
-
-              {/* Bar Controls */}
-              <button 
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-1 ${
-                  darkMode 
-                    ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' 
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-                onClick={addBar}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                </svg>
-                Add Bar
-              </button>
-              <button 
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-1 ${
-                  darkMode 
-                    ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' 
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-                onClick={removeBar}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4"/>
-                </svg>
-                Remove Bar
-              </button>
               <button 
                 className="px-4 py-2.5 text-sm font-medium text-red-400 bg-red-500/10 rounded-xl hover:bg-red-500/20 transition-all flex items-center gap-1"
                 onClick={clearAll}
@@ -2047,25 +2225,7 @@ function TabEditor({ darkMode }) {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
-                Clear
-              </button>
-
-              {/* Practice Mode Toggle */}
-              <button 
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
-                  showPracticeMode
-                    ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
-                    : darkMode 
-                      ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' 
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-                onClick={() => setShowPracticeMode(!showPracticeMode)}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                Practice Mode
-                {showPracticeMode && <span className="text-xs">▼</span>}
+                Clear tab
               </button>
             </div>
 
@@ -2361,93 +2521,42 @@ E|--x--x--3--x--|`}
           </div>
         )}
 
-        {/* Preview Section */}
-        <div className={`px-6 pb-6 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-          <div className={`pt-4 border-t ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-            <h3 className={`text-sm font-medium mb-3 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Text Preview
-            </h3>
-            <pre className={`overflow-x-auto rounded-[22px] p-4 font-mono text-sm ${
-              darkMode ? 'border border-white/8 bg-slate-950 text-sky-200' : 'border border-slate-200 bg-slate-50 text-slate-800'
-            }`}>
-              {mode === 'grid' ? generateTabText() : (textInput || 'No tab data entered')}
-            </pre>
-          </div>
-
-          <div className="mt-6">
-            <button 
-              className={`flex items-center gap-2 rounded-xl px-6 py-3 font-medium shadow-lg transition-all duration-200 ${
-                darkMode ? 'bg-white text-slate-950 shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-slate-900/10 hover:bg-slate-800'
-              }`}
-              onClick={saveTab}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
-              </svg>
-              Save Tab
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Saved Tabs Card */}
-      {savedTabs.length > 0 && (
-        <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
-          darkMode 
-            ? 'border-white/10 bg-slate-950/70' 
-            : 'border-white/80 bg-white/78'
-        }`}>
-          <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                  Saved Tabs
-                </h2>
-                <p className={`mt-1 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Quick access to previous drafts without leaving the studio.
-                </p>
-              </div>
-              <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
-                darkMode ? 'bg-white/8 text-slate-300' : 'bg-slate-950/[0.05] text-slate-600'
-              }`}>
-                {savedTabs.length} saved
-              </div>
-            </div>
-          </div>
-          <div className="p-3">
-            {savedTabs.map((tab, index) => (
-              <div 
-                key={index} 
-                className={`flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3 transition-colors ${
-                  darkMode ? 'border-white/8 bg-white/[0.03] hover:bg-white/[0.05]' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    darkMode ? 'bg-white/8' : 'bg-slate-950/[0.05]'
-                  }`}>
-                    <svg className={`w-5 h-5 ${darkMode ? 'text-sky-300' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                  </div>
-                  <span className={`text-sm ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{tab}</span>
+        {mode === 'grid' && (
+          <div className={`px-6 pb-6 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+            <div className={`border-t pt-4 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className={`text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Text reference
+                  </h3>
+                  <p className={`mt-1 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Reveal the generated ASCII tab only when you want to inspect or copy it.
+                  </p>
                 </div>
                 <button
-                  onClick={() => loadTab(tab)}
-                  className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
-                    darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                  type="button"
+                  onClick={() => setShowReferencePreview((prev) => !prev)}
+                  className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                    showReferencePreview
+                      ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm'
+                      : darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-white text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                  </svg>
-                  Load
+                  {showReferencePreview ? 'Hide reference' : 'Show reference'}
                 </button>
               </div>
-            ))}
+
+              {showReferencePreview && (
+                <pre className={`mt-4 overflow-x-auto rounded-[22px] p-4 font-mono text-sm ${
+                  darkMode ? 'border border-white/8 bg-slate-950 text-sky-200' : 'border border-slate-200 bg-slate-50 text-slate-800'
+                }`}>
+                  {generateTabText()}
+                </pre>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Sample Tabs Modal */}
       {showSampleTabs && (
