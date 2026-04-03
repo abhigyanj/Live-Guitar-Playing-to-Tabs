@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from datetime import datetime
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, redirect, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -23,6 +23,16 @@ MIDIS_DIR = os.path.join(STORAGE_ROOT, 'midis')
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 os.makedirs(TABS_DIR, exist_ok=True)
 os.makedirs(MIDIS_DIR, exist_ok=True)
+
+
+@app.route('/')
+def serve_home():
+    return redirect('/index.html', code=307)
+
+
+@app.route('/favicon.ico')
+def serve_favicon():
+    return redirect('/guitar-tab.svg', code=307)
 
 
 def _to_float(value, default=None):
