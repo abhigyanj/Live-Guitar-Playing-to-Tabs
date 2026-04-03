@@ -38,7 +38,7 @@ const QUICK_START = [
   'Set the section name, tempo, time signature, and bar count at the top of the editor.',
   'Stay in Compose while writing by hand or syncing live notes into the grid.',
   'Open Analyze only when you want the offline audio-to-tab pipeline for a current or saved recording.',
-  'Use Library to reopen earlier drafts, then expand practice controls when you are ready to rehearse or export.',
+  'Use Library to reopen earlier drafts, then expand practice controls when you are ready to rehearse, shape playback feel, or export.',
 ]
 
 const FAQS = [
@@ -59,8 +59,12 @@ const FAQS = [
     a: 'Open Library inside the studio flow switcher. Saved tabs live there instead of occupying a permanent panel on the main editing surface.',
   },
   {
+    q: 'Can playback sound more like a guitar now?',
+    a: 'Yes. Practice mode now includes tone profiles, articulation choices, strum direction and spread, plus a room mix control so playback feels closer to a plucked instrument instead of a plain synth voice.',
+  },
+  {
     q: 'Can I still practice inside the app?',
-    a: 'Yes. Practice controls still live inside the editor, but they stay collapsed until you open them, which keeps the studio lighter when you are focused on writing.',
+    a: 'Yes. Practice controls still live inside the editor, but they stay collapsed until you open them. Once expanded, they cover speed, loops, metronome, and the new guitar-style playback feel controls.',
   },
 ]
 

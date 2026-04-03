@@ -471,6 +471,71 @@ const STUDIO_PANELS = [
   },
 ]
 
+const PLAYBACK_PROFILES = {
+  warm: {
+    label: 'Warm',
+    brightness: 2600,
+    pickNoise: 0.16,
+    overtone2: 0.14,
+    overtone3: 0.06,
+    detune: 2.4,
+    bodyGain: 4.2,
+    roomBias: 1.15,
+  },
+  balanced: {
+    label: 'Balanced',
+    brightness: 3600,
+    pickNoise: 0.22,
+    overtone2: 0.18,
+    overtone3: 0.09,
+    detune: 3.4,
+    bodyGain: 3.3,
+    roomBias: 1,
+  },
+  bright: {
+    label: 'Bright',
+    brightness: 4800,
+    pickNoise: 0.28,
+    overtone2: 0.22,
+    overtone3: 0.12,
+    detune: 4.4,
+    bodyGain: 2.5,
+    roomBias: 0.88,
+  },
+}
+
+const PLAYBACK_ARTICULATIONS = {
+  muted: {
+    label: 'Muted',
+    attack: 0.0035,
+    sustain: 0.42,
+    noise: 1.18,
+    brightness: 0.82,
+    room: 0.55,
+  },
+  natural: {
+    label: 'Natural',
+    attack: 0.005,
+    sustain: 0.72,
+    noise: 1,
+    brightness: 1,
+    room: 1,
+  },
+  open: {
+    label: 'Open',
+    attack: 0.0065,
+    sustain: 1.05,
+    noise: 0.82,
+    brightness: 1.08,
+    room: 1.12,
+  },
+}
+
+const STRUM_DIRECTIONS = [
+  { id: 'down', label: 'Downstroke' },
+  { id: 'up', label: 'Upstroke' },
+]
+
 function TabEditor({ darkMode }) {
   // Audio context for live recording integration
   const audioContext = useAudioContext()
@@ -537,10 +602,17 @@ function TabEditor({ darkMode }) {
   const [gradualSpeedUp, setGradualSpeedUp] = useState(false)
   const [speedIncrement, setSpeedIncrement] = useState(5) // % increase per loop
   const [metronomeEnabled, setMetronomeEnabled] = useState(false)
+  const [playbackProfile, setPlaybackProfile] = useState('balanced')
+  const [playbackArticulation, setPlaybackArticulation] = useState('natural')
+  const [strumSpread, setStrumSpread] = useState(14)
+  const [roomMix, setRoomMix] = useState(18)
+  const [strumDirection, setStrumDirection] = useState('down')
   
   const tabRef = useRef(null)
   const pdfRef = useRef(null)
   const audioContextRef = useRef(null)
+  const playbackEngineRef = useRef(null)
+  const activeAudioNodesRef = useRef([])
   const playbackRef = useRef(null)
   const cellInputRefs = useRef({})
   const lastSyncedNotesCount = useRef(0)
@@ -984,76 +1056,352 @@ function TabEditor({ darkMode }) {
     return openFreq * Math.pow(2, fret / 12)
   }
 
-  // Metronome click sound
-  const playMetronomeClick = (isDownbeat = false) => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
-    }
-    const ctx = audioContextRef.current
-    
-    const osc = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    
-    // Higher pitch for downbeat, lower for other beats
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(isDownbeat ? 1000 : 800, ctx.currentTime)
-    
-    gainNode.gain.setValueAtTime(0, ctx.currentTime)
-    gainNode.gain.linearRampToValueAtTime(isDownbeat ? 0.3 : 0.15, ctx.currentTime + 0.001)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05)
-    
-    osc.connect(gainNode)
-    gainNode.connect(ctx.destination)
-    
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.05)
-  }
+  const createImpulseResponse = (ctx, duration = 1.8, decay = 2.2) => {
+    const frameCount = Math.floor(ctx.sampleRate * duration)
+    const impulse = ctx.createBuffer(2, frameCount, ctx.sampleRate)
 
-  const playNote = (frequency, duration = 0.3) => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
-    }
-    const ctx = audioContextRef.current
-    
-    const osc = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    
-    osc.type = 'triangle'
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime)
-    
-    const osc2 = ctx.createOscillator()
-    const gain2 = ctx.createGain()
-    osc2.type = 'sine'
-    osc2.frequency.setValueAtTime(frequency * 2, ctx.currentTime)
-    gain2.gain.setValueAtTime(0.3, ctx.currentTime)
-    
-    gainNode.gain.setValueAtTime(0, ctx.currentTime)
-    gainNode.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.01)
-    gainNode.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.1)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
-    
-    gain2.gain.setValueAtTime(0, ctx.currentTime)
-    gain2.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01)
-    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration * 0.8)
-    
-    osc.connect(gainNode)
-    osc2.connect(gain2)
-    gainNode.connect(ctx.destination)
-    gain2.connect(ctx.destination)
-    
-    osc.start(ctx.currentTime)
-    osc2.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + duration)
-    osc2.stop(ctx.currentTime + duration)
-  }
-
-  const playColumn = (colIndex) => {
-    STRINGS.forEach(str => {
-      const fret = tabData[str][colIndex]
-      if (fret && !isNaN(fret) && fret !== 'x' && fret !== 'X') {
-        const freq = getFretFrequency(str, parseInt(fret))
-        playNote(freq)
+    for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
+      const channelData = impulse.getChannelData(channel)
+      for (let i = 0; i < frameCount; i += 1) {
+        const decayCurve = Math.pow(1 - i / frameCount, decay)
+        channelData[i] = (Math.random() * 2 - 1) * decayCurve
       }
+    }
+
+    return impulse
+  }
+
+  const getPlaybackEngine = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+    }
+
+    const ctx = audioContextRef.current
+    if (ctx.state === 'suspended') {
+      void ctx.resume()
+    }
+
+    if (!playbackEngineRef.current || playbackEngineRef.current.ctx !== ctx) {
+      const masterGain = ctx.createGain()
+      const dryGain = ctx.createGain()
+      const roomInput = ctx.createGain()
+      const convolver = ctx.createConvolver()
+      const wetGain = ctx.createGain()
+      const compressor = ctx.createDynamicsCompressor()
+      const outputFilter = ctx.createBiquadFilter()
+
+      const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.14), ctx.sampleRate)
+      const noiseData = noiseBuffer.getChannelData(0)
+      for (let i = 0; i < noiseData.length; i += 1) {
+        noiseData[i] = Math.random() * 2 - 1
+      }
+
+      convolver.buffer = createImpulseResponse(ctx)
+
+      compressor.threshold.value = -24
+      compressor.knee.value = 20
+      compressor.ratio.value = 3
+      compressor.attack.value = 0.003
+      compressor.release.value = 0.22
+
+      outputFilter.type = 'lowpass'
+      outputFilter.frequency.value = 6200
+      outputFilter.Q.value = 0.35
+
+      masterGain.gain.value = 0.92
+      dryGain.gain.value = 1
+      wetGain.gain.value = 0.16
+      roomInput.gain.value = 1
+
+      dryGain.connect(compressor)
+      roomInput.connect(convolver)
+      convolver.connect(wetGain)
+      wetGain.connect(compressor)
+      compressor.connect(outputFilter)
+      outputFilter.connect(masterGain)
+      masterGain.connect(ctx.destination)
+
+      playbackEngineRef.current = {
+        ctx,
+        masterGain,
+        dryGain,
+        roomInput,
+        wetGain,
+        outputFilter,
+        noiseBuffer,
+      }
+    }
+
+    const engine = playbackEngineRef.current
+    const activeProfile = PLAYBACK_PROFILES[playbackProfile]
+    engine.wetGain.gain.setValueAtTime((roomMix / 100) * 0.85, ctx.currentTime)
+    engine.outputFilter.frequency.setValueAtTime(
+      Math.max(2400, activeProfile.brightness * 1.65),
+      ctx.currentTime
+    )
+
+    return engine
+  }
+
+  const scheduleAudioCleanup = (nodes, endTime) => {
+    activeAudioNodesRef.current.push(...nodes)
+
+    const delay = Math.max(
+      0,
+      Math.ceil((endTime - audioContextRef.current.currentTime) * 1000 + 120)
+    )
+
+    window.setTimeout(() => {
+      activeAudioNodesRef.current = activeAudioNodesRef.current.filter((node) => !nodes.includes(node))
+      nodes.forEach((node) => {
+        try {
+          node.disconnect?.()
+        } catch {
+          // Ignore disconnect errors for already released nodes.
+        }
+      })
+    }, delay)
+  }
+
+  const stopActiveAudioNodes = useCallback(() => {
+    activeAudioNodesRef.current.forEach((node) => {
+      try {
+        node.stop?.(0)
+      } catch {
+        // Ignore nodes that have already been stopped.
+      }
+
+      try {
+        node.disconnect?.()
+      } catch {
+        // Ignore disconnect errors during stop.
+      }
+    })
+
+    activeAudioNodesRef.current = []
+  }, [])
+
+  const primePlaybackOutput = () => {
+    const engine = getPlaybackEngine()
+    const { ctx, masterGain } = engine
+    const targetLevel = 0.92
+
+    masterGain.gain.cancelScheduledValues(ctx.currentTime)
+    masterGain.gain.setValueAtTime(Math.max(masterGain.gain.value, 0.0001), ctx.currentTime)
+    masterGain.gain.linearRampToValueAtTime(targetLevel, ctx.currentTime + 0.02)
+
+    return engine
+  }
+
+  const playMetronomeClick = (isDownbeat = false, startOffset = 0) => {
+    const engine = getPlaybackEngine()
+    const { ctx, dryGain } = engine
+    const startTime = ctx.currentTime + startOffset
+
+    const osc = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+    const clickFilter = ctx.createBiquadFilter()
+
+    osc.type = isDownbeat ? 'triangle' : 'sine'
+    osc.frequency.setValueAtTime(isDownbeat ? 1400 : 980, startTime)
+
+    clickFilter.type = 'bandpass'
+    clickFilter.frequency.setValueAtTime(isDownbeat ? 1600 : 1120, startTime)
+    clickFilter.Q.value = 1.4
+
+    gainNode.gain.setValueAtTime(0.0001, startTime)
+    gainNode.gain.linearRampToValueAtTime(isDownbeat ? 0.12 : 0.08, startTime + 0.001)
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.05)
+
+    osc.connect(clickFilter)
+    clickFilter.connect(gainNode)
+    gainNode.connect(dryGain)
+
+    osc.start(startTime)
+    osc.stop(startTime + 0.055)
+
+    scheduleAudioCleanup([osc, gainNode, clickFilter], startTime + 0.08)
+  }
+
+  const playNote = (stringName, fret, duration = 0.3, startOffset = 0) => {
+    const engine = getPlaybackEngine()
+    const profile = PLAYBACK_PROFILES[playbackProfile]
+    const articulation = PLAYBACK_ARTICULATIONS[playbackArticulation]
+    const { ctx, dryGain, roomInput, noiseBuffer } = engine
+
+    const frequency = getFretFrequency(stringName, fret)
+    const stringIndex = STRINGS.indexOf(stringName)
+    const startTime = ctx.currentTime + startOffset
+    const noteDuration = Math.min(1.8, Math.max(0.16, duration * articulation.sustain))
+    const peakGain = 0.38 + (stringIndex / (STRINGS.length - 1)) * 0.08
+
+    const noteGain = ctx.createGain()
+    const roomSend = ctx.createGain()
+    const panNode = ctx.createStereoPanner()
+    const highPass = ctx.createBiquadFilter()
+    const toneFilter = ctx.createBiquadFilter()
+    const bodyFilter = ctx.createBiquadFilter()
+
+    const fundamental = ctx.createOscillator()
+    const shimmer = ctx.createOscillator()
+    const secondHarmonic = ctx.createOscillator()
+    const thirdHarmonic = ctx.createOscillator()
+    const fundamentalGain = ctx.createGain()
+    const shimmerGain = ctx.createGain()
+    const secondGain = ctx.createGain()
+    const thirdGain = ctx.createGain()
+
+    const pickNoise = ctx.createBufferSource()
+    const noiseFilter = ctx.createBiquadFilter()
+    const noiseEnvelope = ctx.createGain()
+
+    highPass.type = 'highpass'
+    highPass.frequency.value = 60
+
+    toneFilter.type = 'lowpass'
+    toneFilter.frequency.setValueAtTime(
+      Math.max(1800, profile.brightness * articulation.brightness),
+      startTime
+    )
+    toneFilter.frequency.exponentialRampToValueAtTime(
+      Math.max(1100, profile.brightness * 0.58),
+      startTime + noteDuration
+    )
+    toneFilter.Q.value = 0.75
+
+    bodyFilter.type = 'peaking'
+    bodyFilter.frequency.value = Math.max(120, Math.min(360, frequency * 1.6))
+    bodyFilter.Q.value = 0.95
+    bodyFilter.gain.value = profile.bodyGain
+
+    noteGain.gain.setValueAtTime(0.0001, startTime)
+    noteGain.gain.linearRampToValueAtTime(peakGain, startTime + articulation.attack)
+    noteGain.gain.exponentialRampToValueAtTime(
+      Math.max(0.12, peakGain * 0.46),
+      startTime + Math.min(0.12, noteDuration * 0.35)
+    )
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, startTime + noteDuration)
+
+    roomSend.gain.value = Math.min(0.42, (roomMix / 100) * 0.72 * profile.roomBias * articulation.room)
+    panNode.pan.value = ((stringIndex / (STRINGS.length - 1)) - 0.5) * 0.46
+
+    fundamental.type = 'triangle'
+    fundamental.frequency.setValueAtTime(frequency, startTime)
+    shimmer.type = playbackProfile === 'bright' ? 'sawtooth' : 'triangle'
+    shimmer.frequency.setValueAtTime(frequency, startTime)
+    shimmer.detune.setValueAtTime(profile.detune, startTime)
+    secondHarmonic.type = 'sine'
+    secondHarmonic.frequency.setValueAtTime(frequency * 2, startTime)
+    thirdHarmonic.type = 'sine'
+    thirdHarmonic.frequency.setValueAtTime(frequency * 3, startTime)
+
+    fundamentalGain.gain.value = 0.34
+    shimmerGain.gain.value = 0.12
+    secondGain.gain.value = profile.overtone2
+    thirdGain.gain.value = profile.overtone3
+
+    pickNoise.buffer = noiseBuffer
+    noiseFilter.type = 'bandpass'
+    noiseFilter.frequency.setValueAtTime(
+      Math.max(1800, profile.brightness * 0.95),
+      startTime
+    )
+    noiseFilter.Q.value = 0.85
+    noiseEnvelope.gain.setValueAtTime(0.0001, startTime)
+    noiseEnvelope.gain.linearRampToValueAtTime(
+      profile.pickNoise * articulation.noise,
+      startTime + 0.002
+    )
+    noiseEnvelope.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.04)
+
+    fundamental.connect(fundamentalGain)
+    shimmer.connect(shimmerGain)
+    secondHarmonic.connect(secondGain)
+    thirdHarmonic.connect(thirdGain)
+
+    fundamentalGain.connect(noteGain)
+    shimmerGain.connect(noteGain)
+    secondGain.connect(noteGain)
+    thirdGain.connect(noteGain)
+
+    pickNoise.connect(noiseFilter)
+    noiseFilter.connect(noiseEnvelope)
+    noiseEnvelope.connect(noteGain)
+
+    noteGain.connect(highPass)
+    highPass.connect(toneFilter)
+    toneFilter.connect(bodyFilter)
+    bodyFilter.connect(panNode)
+    panNode.connect(dryGain)
+    panNode.connect(roomSend)
+    roomSend.connect(roomInput)
+
+    const voiceNodes = [
+      fundamental,
+      shimmer,
+      secondHarmonic,
+      thirdHarmonic,
+      pickNoise,
+      fundamentalGain,
+      shimmerGain,
+      secondGain,
+      thirdGain,
+      noteGain,
+      roomSend,
+      panNode,
+      highPass,
+      toneFilter,
+      bodyFilter,
+      noiseFilter,
+      noiseEnvelope,
+    ]
+
+    const stopTime = startTime + noteDuration + 0.06
+
+    fundamental.start(startTime)
+    shimmer.start(startTime)
+    secondHarmonic.start(startTime)
+    thirdHarmonic.start(startTime)
+    pickNoise.start(startTime)
+
+    fundamental.stop(stopTime)
+    shimmer.stop(stopTime)
+    secondHarmonic.stop(stopTime)
+    thirdHarmonic.stop(stopTime)
+    pickNoise.stop(startTime + 0.05)
+
+    scheduleAudioCleanup(voiceNodes, stopTime + 0.08)
+  }
+
+  const playColumn = (colIndex, beatDuration) => {
+    const notes = STRINGS
+      .map((stringName, stringIndex) => ({
+        stringName,
+        stringIndex,
+        fret: tabData[stringName][colIndex],
+      }))
+      .filter(({ fret }) => fret && !Number.isNaN(Number(fret)) && fret !== 'x' && fret !== 'X')
+
+    if (notes.length === 0) {
+      return
+    }
+
+    const orderedNotes = [...notes].sort((a, b) => (
+      strumDirection === 'down'
+        ? b.stringIndex - a.stringIndex
+        : a.stringIndex - b.stringIndex
+    ))
+
+    const spreadSeconds = Math.max(0, strumSpread) / 1000
+    const noteStep = orderedNotes.length > 1 ? spreadSeconds / (orderedNotes.length - 1) : 0
+
+    orderedNotes.forEach((note, index) => {
+      playNote(
+        note.stringName,
+        parseInt(note.fret, 10),
+        beatDuration,
+        noteStep * index
+      )
     })
   }
 
@@ -1063,6 +1411,7 @@ function TabEditor({ darkMode }) {
       return
     }
 
+    primePlaybackOutput()
     setIsPlaying(true)
     setCurrentRepeat(0)
     const totalCols = bars * NOTES_PER_BAR
@@ -1117,7 +1466,7 @@ function TabEditor({ darkMode }) {
       }
       
       setPlaybackPosition(currentCol)
-      playColumn(currentCol)
+      playColumn(currentCol, beatDuration)
       currentCol++
       playbackRef.current = setTimeout(playNext, beatDuration * 1000)
     }
@@ -1133,6 +1482,15 @@ function TabEditor({ darkMode }) {
       clearTimeout(playbackRef.current)
       playbackRef.current = null
     }
+
+    if (playbackEngineRef.current) {
+      const { ctx, masterGain } = playbackEngineRef.current
+      masterGain.gain.cancelScheduledValues(ctx.currentTime)
+      masterGain.gain.setValueAtTime(Math.max(masterGain.gain.value, 0.0001), ctx.currentTime)
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.04)
+    }
+
+    stopActiveAudioNodes()
   }
 
   // Set loop point A or B
@@ -1257,8 +1615,9 @@ function TabEditor({ darkMode }) {
       if (playbackRef.current) {
         clearTimeout(playbackRef.current)
       }
+      stopActiveAudioNodes()
     }
-  }, [])
+  }, [stopActiveAudioNodes])
 
   // Get technique info for a value
   const getTechniqueInfo = (value) => {
@@ -2250,6 +2609,127 @@ function TabEditor({ darkMode }) {
                 </div>
 
                 <div className="p-4 space-y-4">
+                  <div className={`rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                      <h4 className={`text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 10l12-3" />
+                        </svg>
+                        Playback Feel
+                      </h4>
+                      <span className={`text-xs uppercase tracking-[0.18em] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {PLAYBACK_PROFILES[playbackProfile].label} · {PLAYBACK_ARTICULATIONS[playbackArticulation].label}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div>
+                        <label className={`block text-xs font-medium mb-2 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                          Tone profile
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(PLAYBACK_PROFILES).map(([id, profile]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setPlaybackProfile(id)}
+                              className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                                playbackProfile === id
+                                  ? darkMode ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'
+                                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {profile.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={`block text-xs font-medium mb-2 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                          Articulation
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(PLAYBACK_ARTICULATIONS).map(([id, articulation]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setPlaybackArticulation(id)}
+                              className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                                playbackArticulation === id
+                                  ? darkMode ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'
+                                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {articulation.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className={`rounded-[18px] p-3 ${darkMode ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            Strum spread
+                          </label>
+                          <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {strumSpread} ms
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="40"
+                          step="2"
+                          value={strumSpread}
+                          onChange={(e) => setStrumSpread(parseInt(e.target.value, 10))}
+                          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                        />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {STRUM_DIRECTIONS.map((direction) => (
+                            <button
+                              key={direction.id}
+                              type="button"
+                              onClick={() => setStrumDirection(direction.id)}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                                strumDirection === direction.id
+                                  ? darkMode ? 'bg-white text-slate-950' : 'bg-slate-950 text-white'
+                                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-white text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {direction.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className={`rounded-[18px] p-3 ${darkMode ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                            Room mix
+                          </label>
+                          <span className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                            {roomMix}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="40"
+                          step="2"
+                          value={roomMix}
+                          onChange={(e) => setRoomMix(parseInt(e.target.value, 10))}
+                          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                        />
+                        <p className={`mt-3 text-xs leading-6 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          A little room and stagger helps chords feel less machine-perfect without turning the mix cloudy.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Speed Control Section */}
                   <div className={`rounded-[22px] border p-4 ${darkMode ? 'border-white/8 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-center justify-between mb-3">
