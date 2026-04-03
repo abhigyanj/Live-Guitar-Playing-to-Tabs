@@ -1,12 +1,43 @@
-import { useState, useEffect, createContext } from 'react'
-import TabEditor from './components/TabEditor'
+import { useEffect, useMemo, useState } from 'react'
 import HomePage from './components/HomePage'
 import AboutPage from './components/AboutPage'
+import TabEditor from './components/TabEditor'
 import { AudioProvider } from './contexts/AudioContext'
+import { ThemeContext } from './contexts/ThemeContext'
 import './index.css'
 
-// Theme Context
-export const ThemeContext = createContext()
+const NAV_ITEMS = [
+  {
+    id: 'home',
+    label: 'Overview',
+    description: 'Product story and flow',
+  },
+  {
+    id: 'editor',
+    label: 'Studio',
+    description: 'Editing, live capture, export',
+  },
+  {
+    id: 'about',
+    label: 'Guide',
+    description: 'FAQ, shortcuts, roadmap',
+  },
+]
+
+const QUICK_START_ITEMS = [
+  {
+    title: 'Write directly in the grid',
+    text: 'Click any cell and enter a fret number or a technique marker like h, p, /, \\, or x.',
+  },
+  {
+    title: 'Capture ideas live',
+    text: 'Open the live panel to listen, quantize, and sync your playing into the editor in real time.',
+  },
+  {
+    title: 'Refine before you export',
+    text: 'Use practice mode, looping, and tempo controls to audition the part before generating a PDF or saving it.',
+  },
+]
 
 function App() {
   const [activeTab, setActiveTab] = useState('home')
@@ -14,304 +45,183 @@ function App() {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
   })
-  const [showWelcome, setShowWelcome] = useState(() => {
-    const seen = localStorage.getItem('welcomeSeen')
-    return !seen
-  })
+  const [showGuide, setShowGuide] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode))
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
-  const dismissWelcome = () => {
-    setShowWelcome(false)
-    localStorage.setItem('welcomeSeen', 'true')
-  }
+  const activeItem = useMemo(
+    () => NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0],
+    [activeTab]
+  )
+
+  const shellTone = darkMode
+    ? 'border-white/10 bg-slate-950/70 text-white shadow-black/35'
+    : 'border-white/70 bg-white/78 text-slate-900 shadow-slate-900/8'
+
+  const modalTone = darkMode
+    ? 'border-white/10 bg-slate-950/92 text-slate-100'
+    : 'border-white/80 bg-white/92 text-slate-900'
+
+  const segmentedTone = darkMode
+    ? 'bg-white/5 ring-1 ring-white/8'
+    : 'bg-slate-950/[0.045] ring-1 ring-slate-950/5'
 
   return (
     <AudioProvider>
-    <ThemeContext.Provider value={{ darkMode, setDarkMode }}>
-      <div className={`min-h-screen flex flex-col transition-colors duration-300 relative ${
-        darkMode 
-          ? 'bg-slate-900' 
-          : 'bg-slate-50'
-      }`}>
-        {/* Global Animated Background Gradient */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-          <div 
-            className={`absolute w-[800px] h-[800px] rounded-full blur-3xl ${
-              darkMode ? 'bg-indigo-600/15' : 'bg-indigo-300/25'
-            }`}
-            style={{ top: '5%', right: '-15%' }}
-          />
-          <div 
-            className={`absolute w-[700px] h-[700px] rounded-full blur-3xl ${
-              darkMode ? 'bg-purple-600/12' : 'bg-purple-300/20'
-            }`}
-            style={{ bottom: '-10%', left: '-15%' }}
-          />
-          <div 
-            className={`absolute w-[500px] h-[500px] rounded-full blur-3xl ${
-              darkMode ? 'bg-pink-600/8' : 'bg-pink-300/15'
-            }`}
-            style={{ top: '50%', left: '40%' }}
-          />
-        </div>
+      <ThemeContext.Provider value={{ darkMode, setDarkMode }}>
+        <div className={`relative min-h-screen transition-colors duration-500 ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+          <div className="pointer-events-none fixed inset-0 overflow-hidden">
+            <div className={`ambient-orb ambient-orb-left ${darkMode ? 'opacity-80' : 'opacity-100'}`} />
+            <div className={`ambient-orb ambient-orb-right ${darkMode ? 'opacity-65' : 'opacity-95'}`} />
+            <div className={`ambient-grid ${darkMode ? 'opacity-35' : 'opacity-45'}`} />
+          </div>
 
-        {/* Welcome Modal */}
-        {showWelcome && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className={`max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 ${
-              darkMode ? 'bg-slate-800' : 'bg-white'
-            }`}>
-              {/* Header with gradient */}
-              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-8 text-white">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur">
-                    <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M19.952 2.962l-1.307-.753A2 2 0 0016.669 2H7.331a2 2 0 00-1.976.209l-1.307.753A2 2 0 003 4.627v14.746a2 2 0 001.048 1.665l1.307.753A2 2 0 007.331 22h9.338a2 2 0 001.976-.209l1.307-.753A2 2 0 0021 19.373V4.627a2 2 0 00-1.048-1.665zM12 18a1 1 0 110-2 1 1 0 010 2zm2-4H10V6h4v8z"/>
+          {showGuide && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8">
+              <button
+                type="button"
+                aria-label="Close guide"
+                className="absolute inset-0 bg-black/38 backdrop-blur-xl"
+                onClick={() => setShowGuide(false)}
+              />
+              <div className={`relative w-full max-w-3xl overflow-hidden rounded-[32px] border p-8 shadow-2xl backdrop-blur-2xl ${modalTone}`}>
+                <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                  <div className="max-w-xl">
+                    <p className="app-kicker">Quick start</p>
+                    <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                      Everything the app can do, without the clutter.
+                    </h2>
+                    <p className={`mt-4 max-w-lg text-sm sm:text-base ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                      Guitar Tab Studio is built to move from idea capture to polished tab without switching tools.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(false)}
+                    className={`h-11 w-11 rounded-full transition-colors ${darkMode ? 'bg-white/8 text-slate-300 hover:bg-white/14' : 'bg-slate-950/5 text-slate-600 hover:bg-slate-950/10'}`}
+                  >
+                    <svg className="mx-auto h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="mt-8 grid gap-4 md:grid-cols-3">
+                  {QUICK_START_ITEMS.map((item) => (
+                    <div
+                      key={item.title}
+                      className={`rounded-[24px] border px-5 py-5 ${darkMode ? 'border-white/8 bg-white/5' : 'border-slate-950/6 bg-slate-950/[0.03]'}`}
+                    >
+                      <h3 className="text-base font-semibold tracking-[-0.02em]">{item.title}</h3>
+                      <p className={`mt-3 text-sm leading-6 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{item.text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowGuide(false)
+                      setActiveTab('editor')
+                    }}
+                    className="app-button-primary"
+                  >
+                    Open Studio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowGuide(false)
+                      setActiveTab('about')
+                    }}
+                    className="app-button-secondary"
+                  >
+                    Read the guide
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <header className="sticky top-0 z-50 px-4 pt-4 sm:px-6 lg:px-8">
+            <div className={`mx-auto max-w-7xl rounded-[30px] border px-4 py-4 shadow-xl backdrop-blur-2xl transition-colors duration-500 ${shellTone}`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${darkMode ? 'border-white/12 bg-white/8' : 'border-slate-950/7 bg-slate-950/[0.04]'}`}>
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19V6l11-3v13M9 19c0 1.1-1.34 2-3 2s-3-.9-3-2 1.34-2 3-2 3 .9 3 2Zm11-3c0 1.1-1.34 2-3 2s-3-.9-3-2 1.34-2 3-2 3 .9 3 2ZM9 10l11-3" />
                     </svg>
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold">Welcome to Guitar Tab Studio</h1>
-                    <p className="text-white/80 text-sm">Your professional guitar tablature editor</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className={`p-8 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                <h2 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                  What you can do:
-                </h2>
-                
-                <div className="grid gap-4 mb-6">
-                  <div className="flex gap-4 items-start">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Create Professional Tabs</h3>
-                      <p className="text-sm opacity-75">Use the interactive grid editor with bar lines, time signatures, and tempo markings</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 items-start">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Play & Listen</h3>
-                      <p className="text-sm opacity-75">Hear your tabs played back with synthesized guitar sounds at your chosen tempo</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 items-start">
-                    <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Export to PDF</h3>
-                      <p className="text-sm opacity-75">Generate professional sheet music ready to print or share</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 items-start">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Record Audio</h3>
-                      <p className="text-sm opacity-75">Capture your guitar playing directly in the browser</p>
-                    </div>
+                    <div className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-sky-500">Guitar Tab Studio</div>
+                    <div className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{activeItem.description}</div>
                   </div>
                 </div>
 
-                <div className={`p-4 rounded-xl mb-6 ${darkMode ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
-                  <h3 className="font-medium mb-2 flex items-center gap-2">
-                    <span>🎸</span> Technique Notation
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">h</code>
-                      <span>Hammer-on</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">p</code>
-                      <span>Pull-off</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">/</code>
-                      <span>Slide up</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">\</code>
-                      <span>Slide down</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">x</code>
-                      <span>Muted</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="px-2 py-0.5 bg-emerald-500/20 text-emerald-600 rounded font-mono">0-24</code>
-                      <span>Fret number</span>
-                    </div>
-                  </div>
-                </div>
+                <nav className={`no-scrollbar flex items-center gap-1 overflow-x-auto rounded-full p-1 ${segmentedTone}`}>
+                  {NAV_ITEMS.map((item) => {
+                    const isActive = item.id === activeTab
+                    const activeTone = darkMode
+                      ? 'bg-white text-slate-950 shadow-lg shadow-black/20'
+                      : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
 
-                <button
-                  onClick={dismissWelcome}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl
-                           hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg shadow-indigo-500/25
-                           flex items-center justify-center gap-2"
-                >
-                  Get Started
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Header */}
-        <header className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 ${
-          darkMode 
-            ? 'bg-slate-900/80 border-slate-700' 
-            : 'bg-white/80 border-slate-200'
-        }`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              {/* Logo */}
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.952 2.962l-1.307-.753A2 2 0 0016.669 2H7.331a2 2 0 00-1.976.209l-1.307.753A2 2 0 003 4.627v14.746a2 2 0 001.048 1.665l1.307.753A2 2 0 007.331 22h9.338a2 2 0 001.976-.209l1.307-.753A2 2 0 0021 19.373V4.627a2 2 0 00-1.048-1.665zM12 18a1 1 0 110-2 1 1 0 010 2zm2-4H10V6h4v8z"/>
-                  </svg>
-                </div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                  Guitar Tab Studio
-                </h1>
-              </div>
-
-              {/* Navigation */}
-              <div className="flex items-center gap-4">
-                <nav className={`flex p-1 rounded-xl ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                  <button 
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
-                      activeTab === 'home' 
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
-                        : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    onClick={() => setActiveTab('home')}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-                    </svg>
-                    Home
-                  </button>
-                  <button 
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
-                      activeTab === 'editor' 
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
-                        : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    onClick={() => setActiveTab('editor')}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
-                    </svg>
-                    Tab Studio
-                  </button>
-                  <button 
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
-                      activeTab === 'about' 
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
-                        : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    onClick={() => setActiveTab('about')}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    About
-                  </button>
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActiveTab(item.id)}
+                        className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${isActive ? activeTone : darkMode ? 'text-slate-300 hover:bg-white/8 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-950'}`}
+                      >
+                        {item.label}
+                      </button>
+                    )
+                  })}
                 </nav>
 
-                {/* Theme Toggle */}
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    darkMode 
-                      ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                  title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                >
-                  {darkMode ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="4"/>
-                      <path strokeLinecap="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07l-1.41 1.41M8.34 15.66l-1.41 1.41m12.14 0l-1.41-1.41M8.34 8.34L6.93 6.93"/>
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                    </svg>
-                  )}
-                </button>
-
-                {/* Help Button */}
-                <button
-                  onClick={() => setShowWelcome(true)}
-                  className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    darkMode 
-                      ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                  title="Help"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                </button>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(true)}
+                    className="app-button-secondary"
+                  >
+                    Guide
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDarkMode((current) => !current)}
+                    className="app-button-secondary px-4"
+                    title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                  >
+                    {darkMode ? 'Light' : 'Dark'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main className={`flex-1 relative z-10 ${activeTab === 'home' ? '' : 'py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}`}>
-          {activeTab === 'home' && <HomePage darkMode={darkMode} onNavigate={setActiveTab} />}
-          {activeTab === 'editor' && (
-            <TabEditor 
-              darkMode={darkMode} 
-            />
-          )}
-          {activeTab === 'about' && <AboutPage darkMode={darkMode} onNavigate={setActiveTab} />}
-        </main>
+          <main className="relative z-10 pb-20">
+            {activeTab === 'home' ? (
+              <HomePage onNavigate={setActiveTab} />
+            ) : (
+              <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
+                {activeTab === 'editor' && <TabEditor darkMode={darkMode} />}
+                {activeTab === 'about' && <AboutPage onNavigate={setActiveTab} />}
+              </div>
+            )}
+          </main>
 
-        {/* Footer */}
-        <footer className={`relative z-10 py-6 mt-auto transition-colors duration-300 ${
-          darkMode ? 'text-slate-500' : 'text-slate-400'
-        }`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm">
-            Guitar Tab Studio • Create, play, and share guitar tablature
-          </div>
-        </footer>
-      </div>
-    </ThemeContext.Provider>
+          <footer className="relative z-10 px-4 pb-8 sm:px-6 lg:px-8">
+            <div className={`mx-auto flex max-w-7xl flex-col gap-2 rounded-[26px] border px-5 py-4 text-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between ${darkMode ? 'border-white/10 bg-slate-950/55 text-slate-400' : 'border-white/70 bg-white/72 text-slate-500'}`}>
+              <span>Write, hear, capture, and export from one continuous workspace.</span>
+              <span className="text-xs uppercase tracking-[0.22em] text-sky-500">Open source guitar workflow</span>
+            </div>
+          </footer>
+        </div>
+      </ThemeContext.Provider>
     </AudioProvider>
   )
 }

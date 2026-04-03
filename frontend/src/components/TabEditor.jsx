@@ -607,9 +607,10 @@ function TabEditor({ darkMode }) {
   const loadSavedTabs = async () => {
     try {
       const response = await axios.get(`${API_URL}/get-tabs`)
-      setSavedTabs(response.data.tabs)
+      setSavedTabs(Array.isArray(response.data?.tabs) ? response.data.tabs : [])
     } catch (error) {
       console.error('Error loading tabs:', error)
+      setSavedTabs([])
     }
   }
 
@@ -1384,8 +1385,98 @@ function TabEditor({ darkMode }) {
     )
   }
 
+  const totalColumns = bars * NOTES_PER_BAR
+  const studioSummary = [
+    { label: 'Bars', value: bars },
+    { label: 'Columns', value: totalColumns },
+    { label: 'Mode', value: mode === 'grid' ? 'Grid' : 'Text' },
+    { label: 'Live notes', value: detectedNotes.length },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="tab-workspace space-y-6">
+      <section className={`rounded-[32px] border px-6 py-6 shadow-xl backdrop-blur-2xl transition-colors duration-300 sm:px-8 ${
+        darkMode
+          ? 'border-white/10 bg-slate-950/70 text-white shadow-black/25'
+          : 'border-white/75 bg-white/78 text-slate-900 shadow-slate-900/8'
+      }`}>
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="app-kicker">Studio workspace</p>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">
+              Focused tab editing with live input close at hand.
+            </h1>
+            <p className={`mt-4 max-w-2xl text-base leading-7 sm:text-lg ${
+              darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}>
+              Write directly in the grid, sync live notes when inspiration hits, analyze recorded takes, then export a clean result without leaving the same surface.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {studioSummary.map((item) => (
+              <div
+                key={item.label}
+                className={`rounded-[22px] border px-4 py-4 ${
+                  darkMode ? 'border-white/8 bg-white/[0.035]' : 'border-slate-950/6 bg-slate-950/[0.03]'
+                }`}
+              >
+                <div className={`text-[0.7rem] font-semibold uppercase tracking-[0.22em] ${
+                  darkMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
+                  {item.label}
+                </div>
+                <div className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
+          <div className={`rounded-[24px] border px-4 py-4 ${
+            darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-white/86'
+          }`}>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                isListening
+                  ? darkMode ? 'bg-emerald-500/16 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                  : darkMode ? 'bg-white/8 text-slate-300' : 'bg-slate-950/[0.05] text-slate-600'
+              }`}>
+                {isListening ? 'Listening live' : 'Ready for live capture'}
+              </span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                syncToEditor
+                  ? darkMode ? 'bg-sky-500/16 text-sky-300' : 'bg-sky-100 text-sky-700'
+                  : darkMode ? 'bg-white/8 text-slate-300' : 'bg-slate-950/[0.05] text-slate-600'
+              }`}>
+                {syncToEditor ? 'Sync to editor on' : 'Sync to editor off'}
+              </span>
+            </div>
+            <p className={`mt-4 text-sm leading-7 ${
+              darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}>
+              The editor remains the center of gravity. Recording, playback, practice mode, and audio analysis stay nearby so you can move quickly without a crowded first impression.
+            </p>
+          </div>
+
+          <div className={`rounded-[24px] border px-4 py-4 ${
+            darkMode ? 'border-white/8 bg-white/[0.03]' : 'border-slate-950/6 bg-white/86'
+          }`}>
+            <div className={`text-[0.7rem] font-semibold uppercase tracking-[0.22em] ${
+              darkMode ? 'text-slate-500' : 'text-slate-400'
+            }`}>
+              Current section
+            </div>
+            <div className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{sectionName}</div>
+            <div className={`mt-2 text-sm ${
+              darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}>
+              Tempo {tempo} BPM · {timeSignature.top}/{timeSignature.bottom} time
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Live Recorder Panel - Collapsible */}
       <div className={`transition-all duration-300 ${showLivePanel ? 'mb-4' : ''}`}>
         {showLivePanel ? (
@@ -1405,10 +1496,10 @@ function TabEditor({ darkMode }) {
 
       {/* Live Recording Status Bar */}
       {isListening && syncToEditor && (
-        <div className={`flex items-center gap-3 px-4 py-2 rounded-xl ${
+        <div className={`flex items-center gap-3 rounded-[24px] px-4 py-3 backdrop-blur-xl ${
           darkMode 
-            ? 'bg-green-500/10 border border-green-500/30' 
-            : 'bg-green-50 border border-green-200'
+            ? 'border border-emerald-500/20 bg-emerald-500/10' 
+            : 'border border-emerald-200 bg-emerald-50/90'
         }`}>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -1433,10 +1524,10 @@ function TabEditor({ darkMode }) {
       )}
 
       {/* Offline Analysis Panel */}
-      <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
+      <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
         darkMode
-          ? 'bg-slate-800/50 border border-slate-700 shadow-slate-900/50'
-          : 'bg-white border border-slate-200 shadow-slate-200/50'
+          ? 'border-white/10 bg-slate-950/70 shadow-black/25'
+          : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
         <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1462,8 +1553,8 @@ function TabEditor({ darkMode }) {
               onClick={() => setAnalysisSource('current')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 analysisSource === 'current'
-                  ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white'
-                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                  : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               Current recording
@@ -1475,8 +1566,8 @@ function TabEditor({ darkMode }) {
               }}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 analysisSource === 'saved'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
-                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                  : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               Saved recording
@@ -1558,8 +1649,8 @@ function TabEditor({ darkMode }) {
               disabled={isAnalyzingAudio}
               className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
                 isAnalyzingAudio
-                  ? darkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-teal-700'
+                  ? darkMode ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/12 hover:bg-slate-800'
               }`}
             >
               {isAnalyzingAudio ? 'Analyzing...' : 'Analyze audio'}
@@ -1625,7 +1716,9 @@ function TabEditor({ darkMode }) {
                 <a
                   href={getApiAssetUrl(analysisResult.midiUrl)}
                   download={analysisResult.midiFilename}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-600 hover:to-purple-700 transition-colors"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-slate-950 text-white hover:bg-slate-800'
+                  }`}
                 >
                   Download MIDI
                 </a>
@@ -1688,7 +1781,9 @@ function TabEditor({ darkMode }) {
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={importAnalyzedTab}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-green-700 transition-colors"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
+                    }`}
                   >
                     Import into editor
                   </button>
@@ -1708,10 +1803,10 @@ function TabEditor({ darkMode }) {
       </div>
 
       {/* Main Editor Card */}
-      <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
+      <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
         darkMode 
-          ? 'bg-slate-800/50 border border-slate-700 shadow-slate-900/50' 
-          : 'bg-white border border-slate-200 shadow-slate-200/50'
+          ? 'border-white/10 bg-slate-950/70 shadow-black/25' 
+          : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
         {/* Header Controls */}
         <div className={`px-6 py-4 border-b flex items-center justify-between flex-wrap gap-4 ${
@@ -1725,9 +1820,9 @@ function TabEditor({ darkMode }) {
             {/* Sample Tabs Button */}
             <button
               onClick={() => setShowSampleTabs(true)}
-              className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl 
-                       hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-200 
-                       flex items-center gap-2"
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800'
+              }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
@@ -1800,7 +1895,7 @@ function TabEditor({ darkMode }) {
               <button 
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
                   mode === 'grid' 
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm' 
+                    ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm' 
                     : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
                 }`}
                 onClick={() => setMode('grid')}
@@ -1810,7 +1905,7 @@ function TabEditor({ darkMode }) {
               <button 
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
                   mode === 'text' 
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm' 
+                    ? darkMode ? 'bg-white text-slate-950 shadow-sm' : 'bg-slate-950 text-white shadow-sm' 
                     : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'
                 }`}
                 onClick={() => setMode('text')}
@@ -1840,7 +1935,7 @@ function TabEditor({ darkMode }) {
             <div 
               ref={pdfRef}
               className={`rounded-xl p-6 overflow-hidden transition-colors ${
-                darkMode ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-300'
+                darkMode ? 'bg-slate-950 border border-white/8' : 'border border-slate-200 bg-slate-50'
               }`}
             >
               {/* Section Header */}
@@ -1905,7 +2000,7 @@ function TabEditor({ darkMode }) {
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg ${
                   isPlaying 
                     ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-red-500/25 hover:shadow-red-500/40' 
-                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-500/25 hover:shadow-emerald-500/40'
+                    : darkMode ? 'bg-white text-slate-950 shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-slate-900/10 hover:bg-slate-800'
                 }`}
                 onClick={playTab}
               >
@@ -1939,7 +2034,7 @@ function TabEditor({ darkMode }) {
               {/* Export PDF Button */}
               <button 
                 className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg
-                  bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-purple-500/25 hover:shadow-purple-500/40
+                  ${darkMode ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-white text-slate-900 hover:bg-slate-100'} 
                   ${isExporting ? 'opacity-75 cursor-wait' : ''}`}
                 onClick={exportToPDF}
                 disabled={isExporting}
@@ -2313,9 +2408,9 @@ E|--x--x--3--x--|`}
 
           <div className="mt-6">
             <button 
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl 
-                       hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25 transition-all duration-200 
-                       flex items-center gap-2"
+              className={`flex items-center gap-2 rounded-xl px-6 py-3 font-medium shadow-lg transition-all duration-200 ${
+                darkMode ? 'bg-white text-slate-950 shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-slate-900/10 hover:bg-slate-800'
+              }`}
               onClick={saveTab}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2329,10 +2424,10 @@ E|--x--x--3--x--|`}
 
       {/* Saved Tabs Card */}
       {savedTabs.length > 0 && (
-        <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
+        <div className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
           darkMode 
-            ? 'bg-slate-800/50 border border-slate-700' 
-            : 'bg-white border border-slate-200'
+            ? 'border-white/10 bg-slate-950/70' 
+            : 'border-white/80 bg-white/78'
         }`}>
           <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
             <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
@@ -2381,7 +2476,7 @@ E|--x--x--3--x--|`}
             onClick={() => { setShowSampleTabs(false); setSampleTabFilter('all'); setSampleTabSearch(''); }}
           />
           <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl ${
-            darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200'
+            darkMode ? 'border border-white/10 bg-slate-950/92' : 'border border-white/80 bg-white/92'
           }`}>
             {/* Modal Header */}
             <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700' : 'border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50'}`}>

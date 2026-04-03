@@ -1,4 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
 
 html, body, #root {
   margin: 0;
@@ -7,13 +12,166 @@ html, body, #root {
   width: 100%;
 }
 
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f8fafc; /* slate-50 - will be overridden by app */
+html {
+  scroll-behavior: smooth;
 }
 
-.dark body, body:has(.dark) {
-  background: #0f172a; /* slate-900 */
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: "Manrope", "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
+  color: #0f172a;
+  background:
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(165, 243, 252, 0.16), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #eff3f8 55%, #eef2f7 100%);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html.dark body {
+  color: #f8fafc;
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(6, 182, 212, 0.12), transparent 24%),
+    linear-gradient(180deg, #050816 0%, #08111f 50%, #07101c 100%);
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.25);
+  color: inherit;
+}
+
+code,
+pre,
+kbd {
+  font-family: "IBM Plex Mono", "SFMono-Regular", "SF Mono", Consolas, monospace;
+}
+
+.app-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #0284c7;
+}
+
+.app-button-primary,
+.app-button-secondary,
+.app-button-ghost {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.85rem 1.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+}
+
+.app-button-primary:hover,
+.app-button-secondary:hover,
+.app-button-ghost:hover {
+  transform: translateY(-1px);
+}
+
+.app-button-primary {
+  background: #020617;
+  color: #f8fafc;
+  border: 1px solid rgba(2, 6, 23, 0.12);
+  box-shadow: 0 18px 40px -22px rgba(2, 6, 23, 0.55);
+}
+
+html.dark .app-button-primary {
+  background: #f8fafc;
+  color: #020617;
+  border-color: rgba(248, 250, 252, 0.22);
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.55);
+}
+
+.app-button-secondary {
+  background: rgba(255, 255, 255, 0.68);
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px -24px rgba(15, 23, 42, 0.26);
+}
+
+html.dark .app-button-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.app-button-ghost {
+  background: transparent;
+  color: inherit;
+  border: 1px solid transparent;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+
+.ambient-orb-left {
+  top: -10%;
+  left: -8%;
+  width: 28rem;
+  height: 28rem;
+  background: rgba(14, 165, 233, 0.2);
+}
+
+.ambient-orb-right {
+  top: 12%;
+  right: -9%;
+  width: 26rem;
+  height: 26rem;
+  background: rgba(34, 211, 238, 0.16);
+}
+
+.ambient-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent 75%);
+}
+
+.reveal-up {
+  animation: reveal-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* ===== 3D SCENE & PERSPECTIVE ===== */

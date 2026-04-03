@@ -85,10 +85,10 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
   // Compact panel (for inline mode)
   if (!expanded) {
     return (
-      <div className={`rounded-xl border transition-all duration-300 ${
+      <div className={`overflow-hidden rounded-[26px] border shadow-xl backdrop-blur-2xl transition-all duration-300 ${
         darkMode 
-          ? 'bg-slate-800/50 border-slate-700' 
-          : 'bg-white border-slate-200'
+          ? 'border-white/10 bg-slate-950/70 shadow-black/20' 
+          : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -96,9 +96,9 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center relative ${
               isListening 
                 ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-                : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                : darkMode ? 'bg-white/10' : 'bg-slate-950/[0.08]'
             }`}>
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-5 h-5 ${isListening ? 'text-white' : darkMode ? 'text-slate-200' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                   d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
@@ -180,8 +180,7 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
             {!isListening ? (
               <button
                 onClick={() => startListening(settings.enableRecording)}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg text-sm flex items-center gap-1.5
-                         hover:from-green-600 hover:to-emerald-700 transition-all duration-200"
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-emerald-600"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
@@ -232,10 +231,10 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
 
   // Expanded panel (full features)
   return (
-    <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
+    <div className={`overflow-hidden rounded-[28px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
       darkMode 
-        ? 'bg-slate-800/50 border border-slate-700' 
-        : 'bg-white border border-slate-200'
+        ? 'border-white/10 bg-slate-950/70' 
+        : 'border-white/80 bg-white/78'
     }`}>
       {/* Header */}
       <div className={`px-4 py-3 border-b flex items-center justify-between ${
@@ -245,9 +244,9 @@ function LiveRecorderPanel({ darkMode, expanded = false, onToggleExpand }) {
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center relative ${
             isListening 
               ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
-              : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+              : darkMode ? 'bg-white/10' : 'bg-slate-950/[0.08]'
           }`}>
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${isListening ? 'text-white' : darkMode ? 'text-slate-200' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
