@@ -7,16 +7,16 @@ echo "Starting Guitar Tab Studio..."
 echo ""
 
 # Check if we're in the right directory
-if [ ! -f "app.py" ]; then
-    echo "Error: app.py not found. Please run this script from the project root directory."
+if [ ! -f "run_backend.py" ]; then
+    echo "Error: run_backend.py not found. Please run this script from the project root directory."
     exit 1
 fi
 
 # Start the Flask backend
 echo "Starting Flask backend on port 5000..."
 source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activate
-pip install -q flask flask-cors
-python app.py &
+pip install -q -r requirements.txt
+python run_backend.py &
 BACKEND_PID=$!
 
 # Wait a moment for the backend to start

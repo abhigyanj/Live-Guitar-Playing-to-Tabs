@@ -458,7 +458,11 @@ function TabEditor({ darkMode }) {
     isListening, 
     syncToEditor, 
     onNotesChanged,
-    getNotesAsTabData 
+    getNotesAsTabData,
+    currentRecordingBlob,
+    currentRecordingUrl,
+    recordings,
+    loadRecordings,
   } = audioContext
   
   const [bars, setBars] = useState(INITIAL_BARS)
@@ -485,6 +489,17 @@ function TabEditor({ darkMode }) {
   const [showImportModal, setShowImportModal] = useState(false)
   const [sampleTabFilter, setSampleTabFilter] = useState('all')
   const [sampleTabSearch, setSampleTabSearch] = useState('')
+  const [analysisSource, setAnalysisSource] = useState('current')
+  const [selectedAnalysisRecording, setSelectedAnalysisRecording] = useState('')
+  const [analysisSettings, setAnalysisSettings] = useState({
+    bpm: 120,
+    subdivision: 2,
+    smooth: 7,
+    drift: 8,
+    delta: 0.07,
+  })
+  const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState(null)
   
   // Live recorder panel state
   const [showLivePanel, setShowLivePanel] = useState(false)
@@ -513,6 +528,12 @@ function TabEditor({ darkMode }) {
   useEffect(() => {
     loadSavedTabs()
   }, [])
+
+  useEffect(() => {
+    if (!selectedAnalysisRecording && recordings.length > 0) {
+      setSelectedAnalysisRecording(recordings[0])
+    }
+  }, [recordings, selectedAnalysisRecording])
 
   // Focus the selected cell when it changes via arrow keys
   useEffect(() => {
@@ -705,6 +726,94 @@ function TabEditor({ darkMode }) {
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const updateAnalysisSetting = (key, value) => {
+    setAnalysisSettings(prev => ({ ...prev, [key]: value }))
+  }
+
+  const getApiAssetUrl = useCallback((path) => {
+    if (!path) return '#'
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path
+    }
+
+    const apiBase = API_URL.replace(/\/$/, '')
+    if (path.startsWith('/api/')) {
+      return `${apiBase}${path.slice(4)}`
+    }
+    if (path.startsWith('/')) {
+      return `${apiBase}${path}`
+    }
+    return `${apiBase}/${path}`
+  }, [])
+
+  const analyzeAudioToTab = async () => {
+    if (analysisSource === 'current' && !currentRecordingBlob) {
+      showToast('Record something first, then stop the session to analyze it.', 'error')
+      return
+    }
+
+    if (analysisSource === 'saved' && !selectedAnalysisRecording) {
+      showToast('Choose a saved recording to analyze.', 'error')
+      return
+    }
+
+    setIsAnalyzingAudio(true)
+    setAnalysisResult(null)
+
+    try {
+      let response
+
+      if (analysisSource === 'current') {
+        const formData = new FormData()
+        const filename = currentRecordingBlob.type?.includes('wav') ? 'current-recording.wav' : 'current-recording.webm'
+        formData.append('audio_file', currentRecordingBlob, filename)
+        formData.append('bpm', String(analysisSettings.bpm))
+        formData.append('subdivision', String(analysisSettings.subdivision))
+        formData.append('smooth', String(analysisSettings.smooth))
+        formData.append('drift', String(analysisSettings.drift))
+        formData.append('delta', String(analysisSettings.delta))
+
+        response = await axios.post(`${API_URL}/analyze-audio`, formData)
+      } else {
+        response = await axios.post(`${API_URL}/analyze-audio`, {
+          recording_filename: selectedAnalysisRecording,
+          bpm: analysisSettings.bpm,
+          subdivision: analysisSettings.subdivision,
+          smooth: analysisSettings.smooth,
+          drift: analysisSettings.drift,
+          delta: analysisSettings.delta,
+        })
+      }
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Analysis failed.')
+      }
+
+      setAnalysisResult(response.data)
+      showToast(`Analyzed ${response.data.summary.noteCount} notes`, 'success')
+    } catch (error) {
+      const message = error.response?.data?.error || error.message || 'Audio analysis failed'
+      showToast(message, 'error')
+    } finally {
+      setIsAnalyzingAudio(false)
+    }
+  }
+
+  const importAnalyzedTab = () => {
+    if (!analysisResult?.tabText) {
+      showToast('No analyzed tab data to import.', 'error')
+      return
+    }
+
+    parseTabContent(analysisResult.tabText)
+    if (analysisResult.summary?.bpm) {
+      setTempo(Math.round(analysisResult.summary.bpm))
+    }
+    setSectionName('Audio Transcription')
+    setShowImportModal(true)
+    showToast('Imported analyzed tab into the editor', 'success')
   }
 
   // Helper function to convert oklch colors to RGB for PDF export
@@ -1322,6 +1431,281 @@ function TabEditor({ darkMode }) {
           </button>
         </div>
       )}
+
+      {/* Offline Analysis Panel */}
+      <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
+        darkMode
+          ? 'bg-slate-800/50 border border-slate-700 shadow-slate-900/50'
+          : 'bg-white border border-slate-200 shadow-slate-200/50'
+      }`}>
+        <div className={`px-6 py-4 border-b ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                Audio-to-Tab Analysis
+              </h3>
+              <p className={`text-sm mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Runs the Python quantized pitch pipeline on a recording, then lets you import the result into the editor.
+              </p>
+            </div>
+            <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+              darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'
+            }`}>
+              Editor import uses an eighth-note grid
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setAnalysisSource('current')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                analysisSource === 'current'
+                  ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white'
+                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Current recording
+            </button>
+            <button
+              onClick={() => {
+                setAnalysisSource('saved')
+                loadRecordings()
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                analysisSource === 'saved'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                  : darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Saved recording
+            </button>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  BPM
+                </label>
+                <input
+                  type="number"
+                  min="20"
+                  max="300"
+                  value={analysisSettings.bpm}
+                  onChange={(e) => updateAnalysisSetting('bpm', Math.max(20, Math.min(300, parseInt(e.target.value || '120', 10))))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm ${
+                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                  } border`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Onset threshold
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  max="0.3"
+                  step="0.01"
+                  value={analysisSettings.delta}
+                  onChange={(e) => updateAnalysisSetting('delta', parseFloat(e.target.value || '0.07'))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm ${
+                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                  } border`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Tempo smoothing
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="15"
+                  step="2"
+                  value={analysisSettings.smooth}
+                  onChange={(e) => updateAnalysisSetting('smooth', parseInt(e.target.value || '7', 10))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm ${
+                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                  } border`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Max drift %
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="25"
+                  step="0.5"
+                  value={analysisSettings.drift}
+                  onChange={(e) => updateAnalysisSetting('drift', parseFloat(e.target.value || '8'))}
+                  className={`w-full px-3 py-2 rounded-lg text-sm ${
+                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                  } border`}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={analyzeAudioToTab}
+              disabled={isAnalyzingAudio}
+              className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
+                isAnalyzingAudio
+                  ? darkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-teal-700'
+              }`}
+            >
+              {isAnalyzingAudio ? 'Analyzing...' : 'Analyze audio'}
+            </button>
+          </div>
+
+          {analysisSource === 'current' ? (
+            <div className={`px-4 py-3 rounded-xl text-sm ${
+              darkMode ? 'bg-slate-900/50 text-slate-300 border border-slate-700' : 'bg-slate-50 text-slate-600 border border-slate-200'
+            }`}>
+              {currentRecordingUrl
+                ? 'The current in-browser recording is ready to analyze.'
+                : 'Stop a live recording first if you want to analyze the current take without saving it.'}
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Saved recording
+                </label>
+                <select
+                  value={selectedAnalysisRecording}
+                  onChange={(e) => setSelectedAnalysisRecording(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg text-sm ${
+                    darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                  } border`}
+                >
+                  {recordings.length === 0 ? (
+                    <option value="">No saved recordings</option>
+                  ) : (
+                    recordings.map((filename) => (
+                      <option key={filename} value={filename}>{filename}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+              <button
+                onClick={loadRecordings}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Refresh list
+              </button>
+            </div>
+          )}
+
+          {analysisResult && (
+            <div className={`rounded-2xl border overflow-hidden ${
+              darkMode ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'
+            }`}>
+              <div className={`px-5 py-4 border-b flex items-center justify-between gap-4 flex-wrap ${
+                darkMode ? 'border-emerald-500/20' : 'border-emerald-200'
+              }`}>
+                <div>
+                  <h4 className={`font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                    Analysis Ready
+                  </h4>
+                  <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Source: {analysisResult.sourceFilename}
+                  </p>
+                </div>
+                <a
+                  href={getApiAssetUrl(analysisResult.midiUrl)}
+                  download={analysisResult.midiFilename}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-600 hover:to-purple-700 transition-colors"
+                >
+                  Download MIDI
+                </a>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Notes</div>
+                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {analysisResult.summary.noteCount}
+                    </div>
+                  </div>
+                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Mapped</div>
+                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {analysisResult.summary.mappedNoteCount}
+                    </div>
+                  </div>
+                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>BPM</div>
+                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {Math.round(analysisResult.summary.bpm)}
+                    </div>
+                  </div>
+                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Shift</div>
+                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {analysisResult.summary.averageQuantizationShiftMs} ms
+                    </div>
+                  </div>
+                  <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                    <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Duration</div>
+                    <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                      {analysisResult.summary.durationSeconds}s
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`rounded-xl p-4 ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
+                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
+                    First detected notes
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {analysisResult.notes.slice(0, 6).map((note) => (
+                      <div
+                        key={`${note.index}-${note.startTime}`}
+                        className={`px-3 py-2 rounded-lg text-sm ${
+                          darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span className="font-medium">{note.noteName}</span>
+                        {note.position ? ` on ${note.position.string} fret ${note.position.fret}` : ' (unmapped)'}
+                        <span className="opacity-70"> at {note.quantizedStartTime.toFixed(2)}s</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={importAnalyzedTab}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-green-700 transition-colors"
+                  >
+                    Import into editor
+                  </button>
+                  <button
+                    onClick={() => setAnalysisResult(null)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Clear result
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Main Editor Card */}
       <div className={`rounded-2xl shadow-xl overflow-hidden transition-colors duration-300 ${
@@ -2258,16 +2642,16 @@ E|--x--x--3--x--|`}
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">Notes Imported!</h2>
-                  <p className="text-white/80 text-sm">From live transcription</p>
+                  <h2 className="text-xl font-bold">Tab Imported!</h2>
+                  <p className="text-white/80 text-sm">From audio transcription</p>
                 </div>
               </div>
             </div>
             
             <div className={`p-6 ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
               <p className="mb-4">
-                The notes from your live transcription have been added to the tab editor. 
-                You can now edit, refine, and save your transcription.
+                The analyzed notes have been added to the tab editor.
+                You can now edit, refine, and save the transcription.
               </p>
               
               <div className={`p-4 rounded-xl mb-4 ${darkMode ? 'bg-slate-700/50' : 'bg-slate-100'}`}>

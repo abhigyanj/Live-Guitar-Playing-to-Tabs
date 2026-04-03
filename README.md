@@ -6,13 +6,18 @@ A web application for creating guitar tabs and recording audio. Built with Flask
 
 - **Tab Editor**: Create guitar tabs using an interactive grid or freeform text input
 - **Audio Recorder**: Record audio directly from your browser microphone
+- **Audio-to-Tab Analysis**: Run the quantized Python pitch pipeline on a recording and import the result back into the editor
 - **Local Storage**: Tabs and recordings are saved locally on your computer
 
 ## Project Structure
 
 ```
 Live-Guitar-Playing-to-Tabs/
-├── app.py                  # Flask API server
+├── api/
+│   ├── index.py            # Flask API entrypoint for Vercel
+│   └── audio_analysis.py   # Quantized audio-to-tab analysis pipeline
+├── run_backend.py          # Local Flask API runner
+├── analyze_audio_cli.py    # CLI wrapper for offline analysis
 ├── run.sh                  # Script to run both servers
 ├── frontend/               # React frontend application
 │   ├── src/
@@ -34,6 +39,7 @@ Live-Guitar-Playing-to-Tabs/
 - Python 3.8+
 - Node.js 18+
 - npm
+- Python audio packages from `requirements.txt` for offline audio-to-tab analysis
 
 ## Quick Start
 
@@ -57,7 +63,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Run the API server
-python app.py
+python run_backend.py
 ```
 
 **Step 2: Start the frontend (Terminal 2)**
@@ -87,7 +93,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 :: Run the API server
-python app.py
+python run_backend.py
 ```
 
 **Step 2: Start the frontend (Terminal 2)**
@@ -117,7 +123,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # Run the API server
-python app.py
+python run_backend.py
 ```
 
 > **Note**: If you get an execution policy error, run:
@@ -154,6 +160,13 @@ Open your browser to the URL shown in the frontend terminal (usually http://loca
 3. Recordings are automatically saved and appear in the list
 4. Use the audio player to listen to saved recordings
 
+### Audio-to-Tab Analysis
+
+1. Open the **Tab Studio** page
+2. Record a take or choose a saved recording
+3. Use the **Audio-to-Tab Analysis** panel to enter the song BPM and run analysis
+4. Preview the detected notes, download the generated MIDI, and import the tab into the editor
+
 ## Saved Files
 
 - **Tabs**: Saved as `.txt` files in the `tabs/` directory
@@ -168,7 +181,7 @@ Open your browser to the URL shown in the frontend terminal (usually http://loca
 
 This repo is now set up so Vercel can:
 
-- run the Flask app from [app.py](/Users/abhigyanj/Documents/Programming/Live-Guitar-Playing-to-Tabs/app.py)
+- run the Flask app from [api/index.py](/Users/abhigyanj/Documents/Programming/Live-Guitar-Playing-to-Tabs/api/index.py)
 - build the React frontend from `frontend/` into the root `public/` directory
 - serve the frontend and API from the same domain
 
@@ -194,7 +207,7 @@ The frontend now uses same-origin API requests by default. If you ever host the 
 ## Troubleshooting
 
 ### "Cannot connect to backend"
-- Make sure the Flask server is running (`python app.py`)
+- Make sure the Flask server is running (`python run_backend.py`)
 - Check that port 5000 is not used by another application
 
 ### Microphone not working
