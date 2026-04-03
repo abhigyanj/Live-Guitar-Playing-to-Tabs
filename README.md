@@ -164,6 +164,33 @@ Open your browser to the URL shown in the frontend terminal (usually http://loca
 - **Backend API**: http://localhost:5000
 - **Frontend**: http://localhost:5173 (may vary if port is in use)
 
+## Deploying to Vercel
+
+This repo is now set up so Vercel can:
+
+- run the Flask app from [app.py](/Users/abhigyanj/Documents/Programming/Live-Guitar-Playing-to-Tabs/app.py)
+- build the React frontend from `frontend/` into the root `public/` directory
+- serve the frontend and API from the same domain
+
+### Deploy steps
+
+1. Import the repository into Vercel.
+2. Keep the project root as the repository root.
+3. Deploy. The build command is already defined in [vercel.json](/Users/abhigyanj/Documents/Programming/Live-Guitar-Playing-to-Tabs/vercel.json).
+
+### Important limitation on Vercel
+
+Tabs and recordings are currently written to local server storage. On Vercel, server storage is temporary, so saved files may disappear between invocations, deployments, or scale events.
+
+For production-grade persistence, replace file writes with a persistent store such as:
+
+- Vercel Blob for audio files
+- Postgres, Supabase, or another database for tab metadata/content
+
+### Optional environment variable
+
+The frontend now uses same-origin API requests by default. If you ever host the API separately, set `VITE_API_URL` to the full backend URL before building the frontend.
+
 ## Troubleshooting
 
 ### "Cannot connect to backend"

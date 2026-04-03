@@ -7,9 +7,14 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
 
-# Create directories for storing data
-RECORDINGS_DIR = 'recordings'
-TABS_DIR = 'tabs'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PUBLIC_DIR = os.path.join(BASE_DIR, 'public')
+IS_VERCEL = os.environ.get('VERCEL') == '1'
+
+# Vercel Functions only allow temporary writes, so use /tmp there.
+STORAGE_ROOT = '/tmp' if IS_VERCEL else BASE_DIR
+RECORDINGS_DIR = os.path.join(STORAGE_ROOT, 'recordings')
+TABS_DIR = os.path.join(STORAGE_ROOT, 'tabs')
 
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 os.makedirs(TABS_DIR, exist_ok=True)
@@ -79,6 +84,23 @@ def get_tab(filename):
             content = f.read()
         return jsonify({'success': True, 'content': content, 'filename': filename})
     return jsonify({'success': False, 'error': 'File not found'}), 404
+
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    if not os.path.isdir(PUBLIC_DIR):
+        return jsonify({
+            'success': False,
+            'error': 'Frontend build not found. Run the frontend build first.'
+        }), 404
+
+    if path:
+        asset_path = os.path.join(PUBLIC_DIR, path)
+        if os.path.isfile(asset_path):
+            return send_from_directory(PUBLIC_DIR, path)
+
+    return send_from_directory(PUBLIC_DIR, 'index.html')
 
 
 if __name__ == '__main__':
