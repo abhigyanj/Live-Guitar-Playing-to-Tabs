@@ -8,7 +8,6 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PUBLIC_DIR = os.path.join(BASE_DIR, 'public')
 IS_VERCEL = os.environ.get('VERCEL') == '1'
 
 # Vercel Functions only allow temporary writes, so use /tmp there.
@@ -20,12 +19,12 @@ os.makedirs(RECORDINGS_DIR, exist_ok=True)
 os.makedirs(TABS_DIR, exist_ok=True)
 
 
-@app.route('/recordings/<filename>')
+@app.route('/api/recordings/<filename>')
 def serve_recording(filename):
     return send_from_directory(RECORDINGS_DIR, filename)
 
 
-@app.route('/save-tab', methods=['POST'])
+@app.route('/api/save-tab', methods=['POST'])
 def save_tab():
     data = request.json
     tab_data = data.get('tab_data', '')
@@ -39,7 +38,7 @@ def save_tab():
     return jsonify({'success': True, 'filename': filename})
 
 
-@app.route('/save-recording', methods=['POST'])
+@app.route('/api/save-recording', methods=['POST'])
 def save_recording():
     data = request.json
     audio_data = data.get('audio_data', '')
@@ -60,7 +59,7 @@ def save_recording():
     return jsonify({'success': True, 'filename': filename})
 
 
-@app.route('/get-recordings')
+@app.route('/api/get-recordings')
 def get_recordings():
     recordings = []
     if os.path.exists(RECORDINGS_DIR):
@@ -68,7 +67,7 @@ def get_recordings():
     return jsonify({'recordings': recordings})
 
 
-@app.route('/get-tabs')
+@app.route('/api/get-tabs')
 def get_tabs():
     tabs = []
     if os.path.exists(TABS_DIR):
@@ -76,7 +75,7 @@ def get_tabs():
     return jsonify({'tabs': tabs})
 
 
-@app.route('/get-tab/<filename>')
+@app.route('/api/get-tab/<filename>')
 def get_tab(filename):
     filepath = os.path.join(TABS_DIR, filename)
     if os.path.exists(filepath):
@@ -84,23 +83,6 @@ def get_tab(filename):
             content = f.read()
         return jsonify({'success': True, 'content': content, 'filename': filename})
     return jsonify({'success': False, 'error': 'File not found'}), 404
-
-
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_frontend(path):
-    if not os.path.isdir(PUBLIC_DIR):
-        return jsonify({
-            'success': False,
-            'error': 'Frontend build not found. Run the frontend build first.'
-        }), 404
-
-    if path:
-        asset_path = os.path.join(PUBLIC_DIR, path)
-        if os.path.isfile(asset_path):
-            return send_from_directory(PUBLIC_DIR, path)
-
-    return send_from_directory(PUBLIC_DIR, 'index.html')
 
 
 if __name__ == '__main__':
