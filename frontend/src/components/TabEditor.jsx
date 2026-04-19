@@ -575,6 +575,7 @@ function TabEditor({ darkMode }) {
   const [sampleTabSearch, setSampleTabSearch] = useState('')
   const [analysisSource, setAnalysisSource] = useState('current')
   const [selectedAnalysisRecording, setSelectedAnalysisRecording] = useState('')
+  const [uploadedAnalysisFile, setUploadedAnalysisFile] = useState(null)
   const [analysisSettings, setAnalysisSettings] = useState({
     bpm: 120,
     subdivision: 2,
@@ -616,6 +617,7 @@ function TabEditor({ darkMode }) {
   const playbackRef = useRef(null)
   const cellInputRefs = useRef({})
   const lastSyncedNotesCount = useRef(0)
+  const analysisFileInputRef = useRef(null)
 
   useEffect(() => {
     loadSavedTabs()
@@ -825,6 +827,11 @@ function TabEditor({ darkMode }) {
     setAnalysisSettings(prev => ({ ...prev, [key]: value }))
   }
 
+  const handleAnalysisFileChange = (event) => {
+    const [file] = event.target.files || []
+    setUploadedAnalysisFile(file || null)
+  }
+
   const getApiAssetUrl = useCallback((path) => {
     if (!path) return '#'
     if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -852,16 +859,25 @@ function TabEditor({ darkMode }) {
       return
     }
 
+    if (analysisSource === 'upload' && !uploadedAnalysisFile) {
+      showToast('Choose an MP3 or audio file to analyze.', 'error')
+      return
+    }
+
     setIsAnalyzingAudio(true)
     setAnalysisResult(null)
 
     try {
       let response
 
-      if (analysisSource === 'current') {
+      if (analysisSource === 'current' || analysisSource === 'upload') {
         const formData = new FormData()
-        const filename = currentRecordingBlob.type?.includes('wav') ? 'current-recording.wav' : 'current-recording.webm'
-        formData.append('audio_file', currentRecordingBlob, filename)
+        if (analysisSource === 'current') {
+          const filename = currentRecordingBlob.type?.includes('wav') ? 'current-recording.wav' : 'current-recording.webm'
+          formData.append('audio_file', currentRecordingBlob, filename)
+        } else {
+          formData.append('audio_file', uploadedAnalysisFile, uploadedAnalysisFile.name || 'uploaded-audio.mp3')
+        }
         formData.append('bpm', String(analysisSettings.bpm))
         formData.append('subdivision', String(analysisSettings.subdivision))
         formData.append('smooth', String(analysisSettings.smooth))
@@ -1948,6 +1964,16 @@ function TabEditor({ darkMode }) {
                     Current recording
                   </button>
                   <button
+                    onClick={() => setAnalysisSource('upload')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      analysisSource === 'upload'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                        : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Upload MP3
+                  </button>
+                  <button
                     onClick={() => {
                       setAnalysisSource('saved')
                       loadRecordings()
@@ -2053,7 +2079,7 @@ function TabEditor({ darkMode }) {
                       ? 'The current in-browser recording is ready to analyze.'
                       : 'Stop a live recording first if you want to analyze the current take without saving it.'}
                   </div>
-                ) : (
+                ) : analysisSource === 'saved' ? (
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                     <div>
                       <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -2083,6 +2109,54 @@ function TabEditor({ darkMode }) {
                     >
                       Refresh list
                     </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Upload audio file
+                      </label>
+                      <input
+                        ref={analysisFileInputRef}
+                        type="file"
+                        accept=".mp3,audio/mpeg,.wav,audio/wav,.m4a,audio/mp4,.ogg,audio/ogg,.webm,audio/webm"
+                        onChange={handleAnalysisFileChange}
+                        className="hidden"
+                      />
+                      <div className={`w-full px-3 py-2 rounded-lg text-sm border ${
+                        darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                      }`}>
+                        {uploadedAnalysisFile
+                          ? `${uploadedAnalysisFile.name} (${(uploadedAnalysisFile.size / (1024 * 1024)).toFixed(2)} MB)`
+                          : 'No file selected'}
+                      </div>
+                      <p className={`mt-1 text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                        MP3 recommended. WAV, M4A, OGG, and WEBM are also supported.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => analysisFileInputRef.current?.click()}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Choose file
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUploadedAnalysisFile(null)
+                          if (analysisFileInputRef.current) {
+                            analysisFileInputRef.current.value = ''
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          darkMode ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                        }`}
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
                 )}
 
