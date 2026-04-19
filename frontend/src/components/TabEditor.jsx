@@ -576,6 +576,7 @@ function TabEditor({ darkMode }) {
   const [analysisSource, setAnalysisSource] = useState('current')
   const [selectedAnalysisRecording, setSelectedAnalysisRecording] = useState('')
   const [uploadedAnalysisFile, setUploadedAnalysisFile] = useState(null)
+  const [youtubeUrl, setYoutubeUrl] = useState('')
   const [analysisSettings, setAnalysisSettings] = useState({
     bpm: 120,
     subdivision: 2,
@@ -864,6 +865,11 @@ function TabEditor({ darkMode }) {
       return
     }
 
+    if (analysisSource === 'youtube' && !youtubeUrl.trim()) {
+      showToast('Paste a YouTube link to analyze.', 'error')
+      return
+    }
+
     setIsAnalyzingAudio(true)
     setAnalysisResult(null)
 
@@ -885,6 +891,15 @@ function TabEditor({ darkMode }) {
         formData.append('delta', String(analysisSettings.delta))
 
         response = await axios.post(`${API_URL}/analyze-audio`, formData)
+      } else if (analysisSource === 'youtube') {
+        response = await axios.post(`${API_URL}/analyze-audio`, {
+          youtube_url: youtubeUrl.trim(),
+          bpm: analysisSettings.bpm,
+          subdivision: analysisSettings.subdivision,
+          smooth: analysisSettings.smooth,
+          drift: analysisSettings.drift,
+          delta: analysisSettings.delta,
+        })
       } else {
         response = await axios.post(`${API_URL}/analyze-audio`, {
           recording_filename: selectedAnalysisRecording,
@@ -1996,6 +2011,16 @@ function TabEditor({ darkMode }) {
                     Upload MP3
                   </button>
                   <button
+                    onClick={() => setAnalysisSource('youtube')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      analysisSource === 'youtube'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                        : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    YouTube link
+                  </button>
+                  <button
                     onClick={() => {
                       setAnalysisSource('saved')
                       loadRecordings()
@@ -2132,7 +2157,7 @@ function TabEditor({ darkMode }) {
                       Refresh list
                     </button>
                   </div>
-                ) : (
+                ) : analysisSource === 'upload' ? (
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                     <div>
                       <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -2179,6 +2204,24 @@ function TabEditor({ darkMode }) {
                         Clear
                       </button>
                     </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                      YouTube URL
+                    </label>
+                    <input
+                      type="url"
+                      value={youtubeUrl}
+                      onChange={(e) => setYoutubeUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className={`w-full px-3 py-2 rounded-lg text-sm ${
+                        darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
+                      } border`}
+                    />
+                    <p className={`mt-1 text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Paste a single YouTube video URL. Analyze only content you are allowed to use.
+                    </p>
                   </div>
                 )}
 

@@ -7,6 +7,7 @@ A web application for creating guitar tabs and recording audio. Built with Flask
 - **Tab Editor**: Create guitar tabs using an interactive grid or freeform text input
 - **Audio Recorder**: Record audio directly from your browser microphone
 - **Audio-to-Tab Analysis**: Run the quantized Python pitch pipeline on a recording and import the result back into the editor
+- **YouTube Link Input**: Paste a YouTube video URL in the analysis panel and analyze that audio directly
 - **Local Storage**: Tabs and recordings are saved locally on your computer
 
 ## Project Structure
@@ -174,7 +175,7 @@ Open your browser to the URL shown in the frontend terminal (usually http://loca
 ### Audio-to-Tab Analysis
 
 1. Open the **Tab Studio** page
-2. Record a take or choose a saved recording
+2. Choose a source: current recording, saved recording, uploaded file, or a YouTube link
 3. Use the **Audio-to-Tab Analysis** panel to enter the song BPM and run analysis
 4. Preview the detected notes, download the generated MIDI, and import the tab into the editor
 

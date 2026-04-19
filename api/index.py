@@ -1,8 +1,10 @@
 import base64
 import os
+import shutil
 import tempfile
 import uuid
 from datetime import datetime
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, redirect, request, send_from_directory
 from flask_cors import CORS
@@ -23,6 +25,13 @@ MIDIS_DIR = os.path.join(STORAGE_ROOT, 'midis')
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 os.makedirs(TABS_DIR, exist_ok=True)
 os.makedirs(MIDIS_DIR, exist_ok=True)
+
+YOUTUBE_HOSTS = {
+    'youtube.com',
+    'm.youtube.com',
+    'music.youtube.com',
+    'youtu.be',
+}
 
 
 @app.route('/')
@@ -69,6 +78,68 @@ def _parse_analysis_options(payload):
         'velocity': velocity,
         'delta': _to_float(payload.get('delta'), 0.07),
     }
+
+
+def _is_supported_youtube_url(url):
+    parsed = urlparse(url)
+    host = (parsed.netloc or '').lower()
+    if host.startswith('www.'):
+        host = host[4:]
+    return host in YOUTUBE_HOSTS
+
+
+def _download_youtube_audio(youtube_url):
+    normalized_url = str(youtube_url or '').strip()
+    if not normalized_url:
+        raise ValueError('Please paste a YouTube URL to analyze.')
+
+    if not _is_supported_youtube_url(normalized_url):
+        raise ValueError('Please provide a valid YouTube link (youtube.com or youtu.be).')
+
+    try:
+        import yt_dlp
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError('yt_dlp') from exc
+
+    temp_dir = tempfile.mkdtemp(dir=STORAGE_ROOT, prefix='youtube_audio_')
+    output_template = os.path.join(temp_dir, '%(id)s.%(ext)s')
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+        'outtmpl': output_template,
+        'restrictfilenames': True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(normalized_url, download=True)
+            prepared_path = ydl.prepare_filename(info)
+
+        candidate_paths = []
+        if prepared_path:
+            candidate_paths.append(prepared_path)
+
+        for entry in os.listdir(temp_dir):
+            full_path = os.path.join(temp_dir, entry)
+            if os.path.isfile(full_path):
+                candidate_paths.append(full_path)
+
+        source_path = next((path for path in candidate_paths if os.path.exists(path)), None)
+        if source_path is None:
+            raise RuntimeError('No audio file was downloaded from the YouTube link.')
+
+        title = (info or {}).get('title') or 'youtube_audio'
+        source_title = secure_filename(title) or 'youtube_audio'
+        _, ext = os.path.splitext(source_path)
+        source_name = f'{source_title}{ext or ".audio"}'
+
+        return temp_dir, source_path, source_name
+    except Exception as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise RuntimeError(f'Unable to download audio from YouTube: {exc}') from exc
 
 
 @app.route('/recordings/<filename>')
@@ -145,6 +216,7 @@ def get_tab(filename):
 @app.route('/analyze-audio', methods=['POST'])
 def analyze_audio():
     temp_path = None
+    temp_dir = None
 
     try:
         if IS_VERCEL:
@@ -158,7 +230,11 @@ def analyze_audio():
                 ),
             }), 501
 
-        payload = request.form if request.files else (request.json or {})
+        if request.files:
+            payload = request.form
+        else:
+            payload = request.get_json(silent=True) or request.form or {}
+
         options = _parse_analysis_options(payload)
 
         if request.files and 'audio_file' in request.files:
@@ -176,12 +252,17 @@ def analyze_audio():
 
             source_path = temp_path
             source_name = original_name
+        elif payload.get('youtube_url'):
+            temp_dir, source_path, source_name = _download_youtube_audio(payload.get('youtube_url'))
         else:
             recording_filename = secure_filename(payload.get('recording_filename', ''))
             if not recording_filename:
                 return jsonify({
                     'success': False,
-                    'error': 'Provide either an uploaded audio file or a saved recording filename.'
+                    'error': (
+                        'Provide either an uploaded audio file, a YouTube URL, '
+                        'or a saved recording filename.'
+                    )
                 }), 400
 
             source_path = os.path.join(RECORDINGS_DIR, recording_filename)
@@ -226,6 +307,15 @@ def analyze_audio():
         })
     except ValueError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
+    except ModuleNotFoundError as exc:
+        missing_name = getattr(exc, 'name', None) or str(exc)
+        return jsonify({
+            'success': False,
+            'error': (
+                f'Audio analysis is not available because `{missing_name}` is not installed. '
+                'Run `pip install -r requirements-analysis.txt` in the backend environment.'
+            ),
+        }), 500
     except RuntimeError as exc:
         return jsonify({'success': False, 'error': str(exc)}), 422
     except Exception as exc:
@@ -233,3 +323,5 @@ def analyze_audio():
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
