@@ -876,7 +876,17 @@ function TabEditor({ darkMode }) {
     try {
       let response
 
-      if (analysisSource === 'current' || analysisSource === 'upload') {
+      if (analysisSource === 'demo') {
+        response = await axios.post(`${API_URL}/analyze-audio`, {
+          demo_mode: true,
+          bpm: analysisSettings.bpm,
+          subdivision: analysisSettings.subdivision,
+          smooth: analysisSettings.smooth,
+          drift: analysisSettings.drift,
+          delta: analysisSettings.delta,
+          velocity: 96,
+        })
+      } else if (analysisSource === 'current' || analysisSource === 'upload') {
         const formData = new FormData()
         if (analysisSource === 'current') {
           const filename = currentRecordingBlob.type?.includes('wav') ? 'current-recording.wav' : 'current-recording.webm'
@@ -2001,6 +2011,16 @@ function TabEditor({ darkMode }) {
                     Current recording
                   </button>
                   <button
+                    onClick={() => setAnalysisSource('demo')}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      analysisSource === 'demo'
+                        ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
+                        : darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Chart/Tab MIDI demo
+                  </button>
+                  <button
                     onClick={() => setAnalysisSource('upload')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       analysisSource === 'upload'
@@ -2114,7 +2134,7 @@ function TabEditor({ darkMode }) {
                         : darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20 hover:bg-slate-100' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/12 hover:bg-slate-800'
                     }`}
                   >
-                    {isAnalyzingAudio ? 'Analyzing...' : 'Analyze audio'}
+                    {isAnalyzingAudio ? 'Analyzing...' : analysisSource === 'demo' ? 'Run demo' : 'Analyze audio'}
                   </button>
                 </div>
 
@@ -2125,6 +2145,12 @@ function TabEditor({ darkMode }) {
                     {currentRecordingUrl
                       ? 'The current in-browser recording is ready to analyze.'
                       : 'Stop a live recording first if you want to analyze the current take without saving it.'}
+                  </div>
+                ) : analysisSource === 'demo' ? (
+                  <div className={`px-4 py-3 rounded-xl text-sm ${
+                    darkMode ? 'bg-slate-900/50 text-slate-300 border border-slate-700' : 'bg-slate-50 text-slate-600 border border-slate-200'
+                  }`}>
+                    Runs a built-in phrase to demonstrate chart/tab generation, MIDI download, and editor import in one click.
                   </div>
                 ) : analysisSource === 'saved' ? (
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">

@@ -33,6 +33,8 @@ YOUTUBE_HOSTS = {
     'youtu.be',
 }
 
+STRING_ORDER = ['e', 'B', 'G', 'D', 'A', 'E']
+
 
 @app.route('/')
 def serve_home():
@@ -54,6 +56,20 @@ def _to_int(value, default=None):
     if value in (None, ''):
         return default
     return int(value)
+
+
+def _to_bool(value, default=False):
+    if value in (None, ''):
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {'1', 'true', 'yes', 'on'}:
+            return True
+        if normalized in {'0', 'false', 'no', 'off'}:
+            return False
+    return bool(value)
 
 
 def _parse_analysis_options(payload):
@@ -140,6 +156,142 @@ def _download_youtube_audio(youtube_url):
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise RuntimeError(f'Unable to download audio from YouTube: {exc}') from exc
+
+
+def _tab_data_to_text(tab_data):
+    lines = []
+    for string_name in STRING_ORDER:
+        fret_text = '-'.join(
+            '--' if fret == '' else f'-{fret}' if len(str(fret)) == 1 else str(fret)
+            for fret in tab_data[string_name]
+        )
+        lines.append(f'{string_name}|{fret_text}|')
+    return '\n'.join(lines)
+
+
+def _build_chart_tab_midi_demo(midi_output, bpm, subdivision, velocity):
+    try:
+        import pretty_midi
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError('pretty_midi') from exc
+
+    step_seconds = (60.0 / float(bpm)) / int(subdivision)
+    total_slots = 16
+
+    demo_notes = [
+        {
+            'noteName': 'Ab2',
+            'midi': 44,
+            'slotIndex': 0,
+            'durationSlots': 2,
+            'position': {'string': 'E', 'stringIndex': 5, 'fret': 4},
+        },
+        {
+            'noteName': 'Db3',
+            'midi': 49,
+            'slotIndex': 2,
+            'durationSlots': 1,
+            'position': {'string': 'A', 'stringIndex': 4, 'fret': 4},
+        },
+        {
+            'noteName': 'Eb3',
+            'midi': 51,
+            'slotIndex': 3,
+            'durationSlots': 1,
+            'position': {'string': 'A', 'stringIndex': 4, 'fret': 6},
+        },
+        {
+            'noteName': 'Db3',
+            'midi': 49,
+            'slotIndex': 4,
+            'durationSlots': 2,
+            'position': {'string': 'A', 'stringIndex': 4, 'fret': 4},
+        },
+        {
+            'noteName': 'Ab2',
+            'midi': 44,
+            'slotIndex': 6,
+            'durationSlots': 2,
+            'position': {'string': 'E', 'stringIndex': 5, 'fret': 4},
+        },
+        {
+            'noteName': 'Db3',
+            'midi': 49,
+            'slotIndex': 8,
+            'durationSlots': 4,
+            'position': {'string': 'A', 'stringIndex': 4, 'fret': 4},
+        },
+        {
+            'noteName': 'Ab3',
+            'midi': 56,
+            'slotIndex': 8,
+            'durationSlots': 4,
+            'position': {'string': 'D', 'stringIndex': 3, 'fret': 6},
+        },
+    ]
+
+    tab_data = {string_name: [''] * total_slots for string_name in STRING_ORDER}
+    note_events = []
+    midi = pretty_midi.PrettyMIDI(initial_tempo=float(bpm))
+    instrument = pretty_midi.Instrument(
+        program=pretty_midi.instrument_name_to_program('Electric Guitar (clean)')
+    )
+
+    for index, note in enumerate(demo_notes, start=1):
+        slot_index = int(note['slotIndex'])
+        start_time = slot_index * step_seconds
+        duration = max(step_seconds * int(note['durationSlots']), 0.12)
+        end_time = start_time + duration
+
+        instrument.notes.append(
+            pretty_midi.Note(
+                velocity=int(velocity),
+                pitch=int(note['midi']),
+                start=float(start_time),
+                end=float(end_time),
+            )
+        )
+
+        position = note['position']
+        tab_data[position['string']][slot_index] = str(position['fret'])
+
+        note_events.append(
+            {
+                'index': index,
+                'startTime': float(start_time),
+                'endTime': float(end_time),
+                'frequency': None,
+                'midi': int(note['midi']),
+                'noteName': str(note['noteName']),
+                'position': position,
+                'quantizedStartTime': round(float(start_time), 6),
+                'shiftMs': 0.0,
+                'snappedToGrid': True,
+                'slotIndex': slot_index,
+            }
+        )
+
+    midi.instruments.append(instrument)
+    midi.write(midi_output)
+
+    duration_seconds = max((note['endTime'] for note in note_events), default=0.0)
+
+    return {
+        'summary': {
+            'durationSeconds': round(duration_seconds, 3),
+            'sampleRate': 44100,
+            'bpm': float(bpm),
+            'subdivision': int(subdivision),
+            'noteCount': len(note_events),
+            'mappedNoteCount': len(note_events),
+            'gridPoints': total_slots + 1,
+            'averageQuantizationShiftMs': 0.0,
+            'tabSlotCount': total_slots,
+        },
+        'notes': note_events,
+        'tabData': tab_data,
+        'tabText': _tab_data_to_text(tab_data),
+    }
 
 
 @app.route('/recordings/<filename>')
@@ -236,6 +388,25 @@ def analyze_audio():
             payload = request.get_json(silent=True) or request.form or {}
 
         options = _parse_analysis_options(payload)
+
+        if _to_bool(payload.get('demo_mode')):
+            midi_filename = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.mid"
+            midi_path = os.path.join(MIDIS_DIR, midi_filename)
+
+            result = _build_chart_tab_midi_demo(
+                midi_output=midi_path,
+                bpm=options['bpm'],
+                subdivision=options['subdivision'],
+                velocity=options['velocity'],
+            )
+
+            return jsonify({
+                'success': True,
+                'sourceFilename': 'Chart/Tab MIDI Demo',
+                'midiFilename': midi_filename,
+                'midiUrl': f'/api/midi/{midi_filename}',
+                **result,
+            })
 
         if request.files and 'audio_file' in request.files:
             audio_file = request.files['audio_file']

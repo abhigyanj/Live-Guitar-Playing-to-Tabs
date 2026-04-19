@@ -8,6 +8,21 @@ import tempfile
 import numpy as np
 
 
+COMPRESSED_AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".opus",
+    ".webm",
+    ".mp4",
+}
+
+MIN_NOTE_DURATION_SECONDS = 0.07
+GHOST_MERGE_GAP_SECONDS = 0.045
+GHOST_MERGE_MAX_CENTS = 35.0
+
+
 STRING_ORDER = ["e", "B", "G", "D", "A", "E"]
 GUITAR_STRINGS = [
     {"name": "e", "string_index": 0, "open_freq": 329.63},
@@ -65,48 +80,81 @@ def _import_pretty_midi():
     return pretty_midi
 
 
-def load_audio_file(audio_path):
-    """Load audio, falling back to ffmpeg conversion for browser formats like WebM."""
-    librosa = _import_librosa()
+def _resolve_ffmpeg_binary():
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        return ffmpeg
 
     try:
+        import imageio_ffmpeg
+    except ModuleNotFoundError:
+        return None
+
+    try:
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+
+
+def _load_audio_with_ffmpeg(audio_path, librosa):
+    ffmpeg = _resolve_ffmpeg_binary()
+    if ffmpeg is None:
+        raise RuntimeError(
+            "Could not decode compressed audio (MP3/WebM/etc). Install ffmpeg "
+            "or install `imageio-ffmpeg` in the backend environment."
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+        wav_path = tmp_file.name
+
+    try:
+        completed = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-i",
+                audio_path,
+                "-ac",
+                "1",
+                "-ar",
+                "44100",
+                wav_path,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            stderr = completed.stderr.strip() or "ffmpeg failed to convert the audio."
+            raise RuntimeError(stderr)
+
+        return librosa.load(wav_path, sr=None, mono=True)
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+
+
+def load_audio_file(audio_path):
+    """Load audio with robust handling for compressed browser formats and MP3 uploads."""
+    librosa = _import_librosa()
+    extension = os.path.splitext(audio_path)[1].lower()
+    should_transcode = extension in COMPRESSED_AUDIO_EXTENSIONS
+
+    try:
+        if should_transcode:
+            return _load_audio_with_ffmpeg(audio_path, librosa)
         return librosa.load(audio_path, sr=None, mono=True)
     except Exception as original_error:
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg is None:
-            raise RuntimeError(
-                "Could not decode the uploaded audio. Install ffmpeg or upload a WAV file."
-            ) from original_error
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-            wav_path = tmp_file.name
-
         try:
-            completed = subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    audio_path,
-                    "-ac",
-                    "1",
-                    wav_path,
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if completed.returncode != 0:
-                stderr = completed.stderr.strip() or "ffmpeg failed to convert the audio."
-                raise RuntimeError(stderr) from original_error
-            return librosa.load(wav_path, sr=None, mono=True)
-        finally:
-            if os.path.exists(wav_path):
-                os.remove(wav_path)
+            return _load_audio_with_ffmpeg(audio_path, librosa)
+        except RuntimeError as transcode_error:
+            raise RuntimeError(
+                f"Could not decode the uploaded audio: {transcode_error}"
+            ) from original_error
 
 
 def detect_pitch_for_segment(y, sr, t_start, t_end, hop_length=512):
-    """Run YIN over a note segment and return the median voiced frequency."""
+    """Estimate monophonic pitch for a note segment, preferring pYIN for stability."""
     librosa = _import_librosa()
 
     start_sample = int(t_start * sr)
@@ -116,16 +164,38 @@ def detect_pitch_for_segment(y, sr, t_start, t_end, hop_length=512):
     if len(segment) < 2048:
         segment = np.pad(segment, (0, 2048 - len(segment)))
 
+    fmin = librosa.note_to_hz("C2")
+    fmax = librosa.note_to_hz("C7")
+
+    try:
+        f0, _, voiced_prob = librosa.pyin(
+            segment,
+            fmin=fmin,
+            fmax=fmax,
+            sr=sr,
+            hop_length=hop_length,
+            frame_length=2048,
+        )
+
+        valid = np.isfinite(f0)
+        if voiced_prob is not None:
+            valid &= voiced_prob >= 0.55
+
+        voiced_f0 = f0[valid]
+        if len(voiced_f0) > 0:
+            return float(np.median(voiced_f0))
+    except Exception:
+        pass
+
     pitches = librosa.yin(
         segment,
-        fmin=librosa.note_to_hz("C2"),
-        fmax=librosa.note_to_hz("C7"),
+        fmin=fmin,
+        fmax=fmax,
         sr=sr,
         hop_length=hop_length,
     )
 
-    fmin = librosa.note_to_hz("C2")
-    voiced = pitches[pitches > fmin * 1.05]
+    voiced = pitches[(pitches > fmin * 1.02) & np.isfinite(pitches)]
 
     if len(voiced) == 0:
         return None
@@ -133,13 +203,14 @@ def detect_pitch_for_segment(y, sr, t_start, t_end, hop_length=512):
     return float(np.median(voiced))
 
 
-def detect_note_events(y, sr, hop_length=512, min_separation=0.06, delta=0.07):
+def detect_note_events(y, sr, hop_length=512, min_separation=0.08, delta=0.07):
     librosa = _import_librosa()
 
-    _, y_perc = librosa.effects.hpss(y, margin=3.0)
+    y_harm, y_perc = librosa.effects.hpss(y, margin=2.5)
+    onset_signal = (0.65 * y_harm) + (0.35 * y_perc)
 
     onset_env = librosa.onset.onset_strength(
-        y=y_perc,
+        y=onset_signal,
         sr=sr,
         hop_length=hop_length,
         aggregate=np.median,
@@ -161,6 +232,8 @@ def detect_note_events(y, sr, hop_length=512, min_separation=0.06, delta=0.07):
     if len(onset_frames) == 0:
         return np.array([], dtype=float)
 
+    frame_indexes = np.clip(onset_frames.astype(int), 0, max(0, len(onset_env) - 1))
+    onset_strengths = onset_env[frame_indexes]
     onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
 
     attack_rms = []
@@ -171,11 +244,112 @@ def detect_note_events(y, sr, hop_length=512, min_separation=0.06, delta=0.07):
         rms = float(np.sqrt(np.mean(segment ** 2))) if len(segment) > 0 else 0.0
         attack_rms.append(rms)
 
-    attack_rms = np.array(attack_rms)
-    rms_threshold = np.median(attack_rms) * 0.20
-    valid_mask = attack_rms >= rms_threshold
+    attack_rms = np.asarray(attack_rms, dtype=float)
+    if len(attack_rms) == 0:
+        return np.array([], dtype=float)
 
-    return onset_times[valid_mask]
+    strength_threshold = max(float(np.percentile(onset_strengths, 30)), float(np.max(onset_strengths)) * 0.12)
+    rms_threshold = max(float(np.percentile(attack_rms, 30)) * 0.45, float(np.median(attack_rms)) * 0.35)
+    valid_mask = (onset_strengths >= strength_threshold) & (attack_rms >= rms_threshold)
+
+    candidate_times = onset_times[valid_mask]
+    candidate_strengths = onset_strengths[valid_mask]
+    candidate_rms = attack_rms[valid_mask]
+
+    if len(candidate_times) == 0:
+        strongest_idx = int(np.argmax(onset_strengths))
+        return np.asarray([onset_times[strongest_idx]], dtype=float)
+
+    filtered = []
+    for onset_time, strength, rms in zip(candidate_times, candidate_strengths, candidate_rms):
+        current = {
+            "time": float(onset_time),
+            "strength": float(strength),
+            "rms": float(rms),
+        }
+
+        if not filtered:
+            filtered.append(current)
+            continue
+
+        previous = filtered[-1]
+        if current["time"] - previous["time"] < min_separation:
+            prev_score = previous["strength"] * 0.7 + previous["rms"] * 0.3
+            curr_score = current["strength"] * 0.7 + current["rms"] * 0.3
+            if curr_score > prev_score * 1.05:
+                filtered[-1] = current
+            continue
+
+        filtered.append(current)
+
+    return np.asarray([item["time"] for item in filtered], dtype=float)
+
+
+def _pitch_distance_cents(freq_a, freq_b):
+    if freq_a is None or freq_b is None or freq_a <= 0 or freq_b <= 0:
+        return None
+    return abs(1200.0 * math.log2(float(freq_a) / float(freq_b)))
+
+
+def suppress_ghost_notes(
+    note_events,
+    min_note_duration=MIN_NOTE_DURATION_SECONDS,
+    merge_gap=GHOST_MERGE_GAP_SECONDS,
+    merge_cents=GHOST_MERGE_MAX_CENTS,
+):
+    voiced_events = [dict(note) for note in note_events if note.get("frequency") not in (None, 0)]
+    if not voiced_events:
+        return []
+
+    merged_events = []
+    for note in voiced_events:
+        if not merged_events:
+            merged_events.append(note)
+            continue
+
+        previous = merged_events[-1]
+        cents = _pitch_distance_cents(previous.get("frequency"), note.get("frequency"))
+        gap = float(note["startTime"]) - float(previous["endTime"])
+
+        if cents is not None and gap <= merge_gap and cents <= merge_cents:
+            previous["endTime"] = max(float(previous["endTime"]), float(note["endTime"]))
+            if note.get("position") and not previous.get("position"):
+                previous["position"] = note.get("position")
+            continue
+
+        merged_events.append(note)
+
+    filtered_events = []
+    total = len(merged_events)
+    for idx, note in enumerate(merged_events):
+        duration = float(note["endTime"]) - float(note["startTime"])
+        if duration >= min_note_duration:
+            filtered_events.append(note)
+            continue
+
+        prev_note = merged_events[idx - 1] if idx > 0 else None
+        next_note = merged_events[idx + 1] if idx + 1 < total else None
+
+        prev_close = False
+        next_close = False
+
+        if prev_note is not None:
+            prev_cents = _pitch_distance_cents(prev_note.get("frequency"), note.get("frequency"))
+            prev_close = prev_cents is not None and prev_cents <= merge_cents
+
+        if next_note is not None:
+            next_cents = _pitch_distance_cents(next_note.get("frequency"), note.get("frequency"))
+            next_close = next_cents is not None and next_cents <= merge_cents
+
+        if prev_close or next_close:
+            continue
+
+        filtered_events.append(note)
+
+    for index, note in enumerate(filtered_events, start=1):
+        note["index"] = index
+
+    return filtered_events
 
 
 def running_median(values, w=7):
@@ -443,6 +617,15 @@ def analyze_audio_file(
                 "position": position,
             }
         )
+
+    note_events = suppress_ghost_notes(note_events)
+    if len(note_events) == 0:
+        raise RuntimeError(
+            "No stable monophonic notes detected. Try cleaner single-note input or raise onset threshold."
+        )
+
+    onsets = np.asarray([float(note["startTime"]) for note in note_events], dtype=float)
+    midi_notes = [note.get("midi") for note in note_events]
 
     grid = build_adaptive_grid(
         onsets=onsets,
