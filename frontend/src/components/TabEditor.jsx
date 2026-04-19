@@ -900,8 +900,30 @@ function TabEditor({ darkMode }) {
         throw new Error(response.data?.error || 'Analysis failed.')
       }
 
-      setAnalysisResult(response.data)
-      showToast(`Analyzed ${response.data.summary.noteCount} notes`, 'success')
+      const notes = Array.isArray(response.data?.notes) ? response.data.notes : []
+      const summaryFromApi = response.data?.summary && typeof response.data.summary === 'object'
+        ? response.data.summary
+        : {}
+      const normalizedSummary = {
+        noteCount: typeof summaryFromApi.noteCount === 'number' ? summaryFromApi.noteCount : notes.length,
+        mappedNoteCount: typeof summaryFromApi.mappedNoteCount === 'number'
+          ? summaryFromApi.mappedNoteCount
+          : notes.filter((note) => note?.position).length,
+        bpm: typeof summaryFromApi.bpm === 'number' ? summaryFromApi.bpm : analysisSettings.bpm,
+        averageQuantizationShiftMs: typeof summaryFromApi.averageQuantizationShiftMs === 'number'
+          ? summaryFromApi.averageQuantizationShiftMs
+          : 0,
+        durationSeconds: typeof summaryFromApi.durationSeconds === 'number' ? summaryFromApi.durationSeconds : 0,
+      }
+
+      const normalizedResult = {
+        ...response.data,
+        summary: normalizedSummary,
+        notes,
+      }
+
+      setAnalysisResult(normalizedResult)
+      showToast(`Analyzed ${normalizedSummary.noteCount} notes`, 'success')
     } catch (error) {
       const message = error.response?.data?.error || error.message || 'Audio analysis failed'
       showToast(message, 'error')
@@ -2172,7 +2194,7 @@ function TabEditor({ darkMode }) {
                           Analysis Ready
                         </h4>
                         <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                          Source: {analysisResult.sourceFilename}
+                          Source: {analysisResult.sourceFilename || 'Uploaded audio'}
                         </p>
                       </div>
                       <a
@@ -2191,31 +2213,31 @@ function TabEditor({ darkMode }) {
                         <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
                           <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Notes</div>
                           <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                            {analysisResult.summary.noteCount}
+                            {analysisResult.summary?.noteCount ?? 0}
                           </div>
                         </div>
                         <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
                           <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Mapped</div>
                           <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                            {analysisResult.summary.mappedNoteCount}
+                            {analysisResult.summary?.mappedNoteCount ?? 0}
                           </div>
                         </div>
                         <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
                           <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>BPM</div>
                           <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                            {Math.round(analysisResult.summary.bpm)}
+                            {Math.round(analysisResult.summary?.bpm ?? 0)}
                           </div>
                         </div>
                         <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
                           <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Shift</div>
                           <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                            {analysisResult.summary.averageQuantizationShiftMs} ms
+                            {analysisResult.summary?.averageQuantizationShiftMs ?? 0} ms
                           </div>
                         </div>
                         <div className={`px-3 py-3 rounded-xl ${darkMode ? 'bg-slate-900/40' : 'bg-white/80'}`}>
                           <div className={`text-xs uppercase tracking-wide ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Duration</div>
                           <div className={`text-lg font-semibold mt-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                            {analysisResult.summary.durationSeconds}s
+                            {(analysisResult.summary?.durationSeconds ?? 0)}s
                           </div>
                         </div>
                       </div>
@@ -2225,7 +2247,14 @@ function TabEditor({ darkMode }) {
                           First detected notes
                         </div>
                         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                          {analysisResult.notes.slice(0, 6).map((note) => (
+                          {(analysisResult.notes || []).slice(0, 6).map((note) => {
+                            const displayTime = typeof note.quantizedStartTime === 'number'
+                              ? note.quantizedStartTime
+                              : typeof note.startTime === 'number'
+                                ? note.startTime
+                                : null
+
+                            return (
                             <div
                               key={`${note.index}-${note.startTime}`}
                               className={`px-3 py-2 rounded-lg text-sm ${
@@ -2234,9 +2263,12 @@ function TabEditor({ darkMode }) {
                             >
                               <span className="font-medium">{note.noteName}</span>
                               {note.position ? ` on ${note.position.string} fret ${note.position.fret}` : ' (unmapped)'}
-                              <span className="opacity-70"> at {note.quantizedStartTime.toFixed(2)}s</span>
+                              {displayTime !== null && (
+                                <span className="opacity-70"> at {displayTime.toFixed(2)}s</span>
+                              )}
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
 
