@@ -454,20 +454,23 @@ const STUDIO_PANELS = [
   {
     id: 'compose',
     label: 'Compose',
-    title: 'Write and capture in one place',
-    body: 'Keep the editor central, then use live input when ideas arrive faster than typing.',
+    title: 'Capture and write in one pass',
+    body: 'Keep the editor central and push live notes straight into the grid when ideas come quickly.',
+    cue: '01',
   },
   {
     id: 'analyze',
     label: 'Analyze',
-    title: 'Turn recordings into editable structure',
-    body: 'Run saved or current takes through the analysis pipeline, inspect the output, then import only when it looks useful.',
+    title: 'Convert takes into editable tabs',
+    body: 'Run recordings, uploads, YouTube links, or demo sources through analysis and import only the useful result.',
+    cue: '02',
   },
   {
     id: 'library',
     label: 'Library',
-    title: 'Reload earlier drafts quickly',
-    body: 'Open saved tabs as a lightweight library instead of treating the studio like a giant dashboard.',
+    title: 'Recall previous drafts quickly',
+    body: 'Open saved tabs as a lightweight library so you can continue writing without changing tools.',
+    cue: '03',
   },
 ]
 
@@ -1820,22 +1823,43 @@ function TabEditor({ darkMode }) {
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="app-kicker">Studio workspace</p>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">
-              Focused tab editing with live input close at hand.
+            <h1 className="mt-4 text-[clamp(2rem,4.6vw,3.6rem)] font-semibold tracking-[-0.05em] leading-[1.03]">
+              Studio that stays out of the way while you write.
             </h1>
             <p className={`mt-4 max-w-2xl text-base leading-7 sm:text-lg ${
               darkMode ? 'text-slate-300' : 'text-slate-600'
             }`}>
-              Write directly in the grid, sync live notes when inspiration hits, analyze recorded takes, then export a clean result without leaving the same surface.
+              Compose, analyze, and recall saved work from one surface without bouncing across disconnected screens.
             </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {STUDIO_PANELS.map((panel) => (
+                <button
+                  key={`quick-${panel.id}`}
+                  type="button"
+                  onClick={() => setActiveStudioPanel(panel.id)}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition-all ${
+                    activeStudioPanel === panel.id
+                      ? darkMode
+                        ? 'border-white/20 bg-white text-slate-950 shadow-lg shadow-black/20'
+                        : 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-900/15'
+                      : darkMode
+                        ? 'border-white/12 bg-white/[0.04] text-slate-300 hover:border-white/25 hover:bg-white/[0.08]'
+                        : 'border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                  }`}
+                >
+                  {panel.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[30rem] xl:grid-cols-2">
             {studioSummary.map((item) => (
               <div
                 key={item.label}
-                className={`rounded-[22px] border px-4 py-4 ${
-                  darkMode ? 'border-white/8 bg-white/[0.035]' : 'border-slate-950/6 bg-slate-950/[0.03]'
+                className={`rounded-[20px] border px-4 py-3.5 ${
+                  darkMode ? 'border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02]' : 'border-slate-950/6 bg-gradient-to-br from-white to-slate-50'
                 }`}
               >
                 <div className={`text-[0.7rem] font-semibold uppercase tracking-[0.22em] ${
@@ -1843,7 +1867,7 @@ function TabEditor({ darkMode }) {
                 }`}>
                   {item.label}
                 </div>
-                <div className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{item.value}</div>
+                <div className="mt-1.5 text-2xl font-semibold tracking-[-0.045em]">{item.value}</div>
               </div>
             ))}
           </div>
@@ -1894,33 +1918,49 @@ function TabEditor({ darkMode }) {
         </div>
       </section>
 
-      <section className={`overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
+      <section className={`relative overflow-hidden rounded-[30px] border shadow-xl backdrop-blur-2xl transition-colors duration-300 ${
         darkMode
           ? 'border-white/10 bg-slate-950/70 shadow-black/25'
           : 'border-white/80 bg-white/78 shadow-slate-900/8'
       }`}>
+        <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 ${darkMode ? 'bg-gradient-to-b from-sky-500/10 to-transparent' : 'bg-gradient-to-b from-sky-200/70 to-transparent'}`} />
         <div className={`border-b px-6 py-5 ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <div className="app-kicker">Studio flow</div>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">Work in one focused lane at a time.</h2>
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.045em] sm:text-3xl">One lane at a time, with context intact.</h2>
               <p className={`mt-3 text-sm leading-7 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                 {currentStudioPanel.title}. {currentStudioPanel.body}
               </p>
             </div>
-            <div className={`inline-flex flex-wrap items-center gap-2 rounded-full p-1 ${darkMode ? 'bg-white/6' : 'bg-slate-950/[0.04]'}`}>
+
+            <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-xl">
               {STUDIO_PANELS.map((panel) => (
                 <button
                   key={panel.id}
                   type="button"
                   onClick={() => setActiveStudioPanel(panel.id)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                  className={`rounded-2xl border px-4 py-3 text-left transition-all ${
                     activeStudioPanel === panel.id
-                      ? darkMode ? 'bg-white text-slate-950 shadow-lg shadow-black/20' : 'bg-slate-950 text-white shadow-lg shadow-slate-900/10'
-                      : darkMode ? 'text-slate-300 hover:bg-white/8 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                      ? darkMode
+                        ? 'border-white/22 bg-white text-slate-950 shadow-xl shadow-black/20'
+                        : 'border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-900/12'
+                      : darkMode
+                        ? 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/25 hover:bg-white/[0.08] hover:text-white'
+                        : 'border-slate-200 bg-white/88 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900'
                   }`}
                 >
-                  {panel.label}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">{panel.cue}</span>
+                    <span className={`text-[0.7rem] font-semibold uppercase tracking-[0.16em] ${
+                      activeStudioPanel === panel.id
+                        ? darkMode ? 'text-slate-700' : 'text-slate-300'
+                        : darkMode ? 'text-slate-500' : 'text-slate-400'
+                    }`}>
+                      {panel.label}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm font-semibold tracking-[-0.02em]">{panel.title}</div>
                 </button>
               ))}
             </div>
