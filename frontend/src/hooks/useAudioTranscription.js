@@ -118,9 +118,10 @@ export function useAudioTranscription(options = {}) {
   const loadRecordings = async () => {
     try {
       const response = await axios.get(`${API_URL}/get-recordings`)
-      setRecordings(response.data.recordings || [])
+      setRecordings(Array.isArray(response.data?.recordings) ? response.data.recordings : [])
     } catch (error) {
       console.error('Error loading recordings:', error)
+      setRecordings([])
     }
   }
 

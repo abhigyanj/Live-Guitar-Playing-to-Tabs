@@ -65,6 +65,63 @@ const getTimeSignatureDenominatorPower = (denominator) => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
+const normalizeToastMessage = (value, fallback = 'Something went wrong.') => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return fallback
+    }
+
+    const lower = trimmed.toLowerCase()
+    if (lower.startsWith('<!doctype') || lower.startsWith('<html')) {
+      return fallback
+    }
+
+    return trimmed
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.error === 'string' && value.error.trim()) {
+      return value.error.trim()
+    }
+    if (typeof value.message === 'string' && value.message.trim()) {
+      return value.message.trim()
+    }
+
+    try {
+      const serialized = JSON.stringify(value)
+      return serialized && serialized !== '{}' ? serialized : fallback
+    } catch {
+      return fallback
+    }
+  }
+
+  return fallback
+}
+
+const extractAnalysisErrorMessage = (error) => {
+  const statusCode = error?.response?.status
+  if (statusCode === 413) {
+    return 'The uploaded file is too large for this deployment. Try a shorter clip or run the backend locally.'
+  }
+
+  const responseData = error?.response?.data
+  const rawMessage = responseData?.error ?? responseData?.message ?? responseData ?? error?.message
+
+  if (statusCode === 501) {
+    return normalizeToastMessage(
+      rawMessage,
+      'Audio analysis is disabled on this Vercel deployment. Run the backend locally for MP3 analysis.'
+    )
+  }
+
+  return normalizeToastMessage(rawMessage, 'Audio analysis failed.')
+}
+
 const buildMidiBytesFromTab = ({ tabData, bars, notesPerBar, tempo, timeSignature }) => {
   const safeBars = Math.max(1, Number.isFinite(Number(bars)) ? Number(bars) : 1)
   const safeNotesPerBar = Math.max(1, Number.isFinite(Number(notesPerBar)) ? Number(notesPerBar) : 8)
@@ -982,7 +1039,8 @@ function TabEditor({ darkMode }) {
   }
 
   const showToast = (message, type = 'success') => {
-    setToast({ message, type })
+    const fallback = type === 'error' ? 'Something went wrong.' : 'Done.'
+    setToast({ message: normalizeToastMessage(message, fallback), type })
     setTimeout(() => setToast(null), 3000)
   }
 
@@ -1087,7 +1145,9 @@ function TabEditor({ darkMode }) {
         throw new Error(response.data?.error || 'Analysis failed.')
       }
 
-      const notes = Array.isArray(response.data?.notes) ? response.data.notes : []
+      const notes = Array.isArray(response.data?.notes)
+        ? response.data.notes.filter((note) => note && typeof note === 'object')
+        : []
       const summaryFromApi = response.data?.summary && typeof response.data.summary === 'object'
         ? response.data.summary
         : {}
@@ -1112,8 +1172,7 @@ function TabEditor({ darkMode }) {
       setAnalysisResult(normalizedResult)
       showToast(`Analyzed ${normalizedSummary.noteCount} notes`, 'success')
     } catch (error) {
-      const message = error.response?.data?.error || error.message || 'Audio analysis failed'
-      showToast(message, 'error')
+      showToast(extractAnalysisErrorMessage(error), 'error')
     } finally {
       setIsAnalyzingAudio(false)
     }
@@ -2487,7 +2546,9 @@ function TabEditor({ darkMode }) {
                         darkMode ? 'bg-slate-700 text-white border-slate-600' : 'bg-white text-slate-800 border-slate-200'
                       }`}>
                         {uploadedAnalysisFile
-                          ? `${uploadedAnalysisFile.name} (${(uploadedAnalysisFile.size / (1024 * 1024)).toFixed(2)} MB)`
+                          ? `${uploadedAnalysisFile.name || 'selected-audio'} (${((
+                            Number.isFinite(uploadedAnalysisFile.size) ? uploadedAnalysisFile.size : 0
+                          ) / (1024 * 1024)).toFixed(2)} MB)`
                           : 'No file selected'}
                       </div>
                       <p className={`mt-1 text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -2605,22 +2666,31 @@ function TabEditor({ darkMode }) {
                           First detected notes
                         </div>
                         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                          {(analysisResult.notes || []).slice(0, 6).map((note) => {
-                            const displayTime = typeof note.quantizedStartTime === 'number'
+                          {(analysisResult.notes || []).slice(0, 6).map((note, noteIdx) => {
+                            const displayTime = typeof note?.quantizedStartTime === 'number'
                               ? note.quantizedStartTime
-                              : typeof note.startTime === 'number'
+                              : typeof note?.startTime === 'number'
                                 ? note.startTime
                                 : null
+                            const noteName = typeof note?.noteName === 'string' && note.noteName.trim()
+                              ? note.noteName
+                              : '?'
+                            const mappedString = typeof note?.position?.string === 'string'
+                              ? note.position.string
+                              : null
+                            const mappedFret = note?.position?.fret
 
                             return (
                             <div
-                              key={`${note.index}-${note.startTime}`}
+                              key={`${note?.index ?? noteIdx}-${note?.startTime ?? noteIdx}`}
                               className={`px-3 py-2 rounded-lg text-sm ${
                                 darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-600'
                               }`}
                             >
-                              <span className="font-medium">{note.noteName}</span>
-                              {note.position ? ` on ${note.position.string} fret ${note.position.fret}` : ' (unmapped)'}
+                              <span className="font-medium">{noteName}</span>
+                              {mappedString && (typeof mappedFret === 'number' || typeof mappedFret === 'string')
+                                ? ` on ${mappedString} fret ${mappedFret}`
+                                : ' (unmapped)'}
                               {displayTime !== null && (
                                 <span className="opacity-70"> at {displayTime.toFixed(2)}s</span>
                               )}
