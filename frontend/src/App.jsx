@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import HomePage from './components/HomePage'
 import AboutPage from './components/AboutPage'
 import TabEditor from './components/TabEditor'
+import StudioErrorBoundary from './components/StudioErrorBoundary'
 import { AudioProvider } from './contexts/AudioContext'
 import { ThemeContext } from './contexts/ThemeContext'
 import './index.css'
@@ -208,7 +209,11 @@ function App() {
               <HomePage onNavigate={setActiveTab} />
             ) : (
               <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
-                {activeTab === 'editor' && <TabEditor darkMode={darkMode} />}
+                {activeTab === 'editor' && (
+                  <StudioErrorBoundary darkMode={darkMode}>
+                    <TabEditor darkMode={darkMode} />
+                  </StudioErrorBoundary>
+                )}
                 {activeTab === 'about' && <AboutPage onNavigate={setActiveTab} />}
               </div>
             )}

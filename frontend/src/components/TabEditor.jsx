@@ -9,6 +9,155 @@ import { API_URL } from '../config/api'
 const STRINGS = ['e', 'B', 'G', 'D', 'A', 'E']
 const INITIAL_BARS = 4
 const NOTES_PER_BAR = 8
+const STRING_OPEN_MIDI_NOTES = [64, 59, 55, 50, 45, 40]
+const MIDI_PPQN = 480
+
+const textToAsciiBytes = (text) => Array.from(text, (char) => char.charCodeAt(0) & 0xff)
+
+const toUint16 = (value) => [
+  (value >> 8) & 0xff,
+  value & 0xff,
+]
+
+const toUint32 = (value) => [
+  (value >> 24) & 0xff,
+  (value >> 16) & 0xff,
+  (value >> 8) & 0xff,
+  value & 0xff,
+]
+
+const toVarLen = (value) => {
+  let remaining = Math.max(0, Math.floor(value))
+  const bytes = [remaining & 0x7f]
+  remaining >>= 7
+
+  while (remaining > 0) {
+    bytes.unshift((remaining & 0x7f) | 0x80)
+    remaining >>= 7
+  }
+
+  return bytes
+}
+
+const parseFretForMidi = (value) => {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value >= 0 && value <= 24 ? value : null
+  }
+
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  if (!/^\d{1,2}$/.test(trimmed)) {
+    return null
+  }
+
+  const fret = parseInt(trimmed, 10)
+  return fret >= 0 && fret <= 24 ? fret : null
+}
+
+const getTimeSignatureDenominatorPower = (denominator) => {
+  const validDenominators = [1, 2, 4, 8, 16, 32, 64]
+  const safeDenominator = validDenominators.includes(denominator) ? denominator : 4
+  return Math.log2(safeDenominator)
+}
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+
+const buildMidiBytesFromTab = ({ tabData, bars, notesPerBar, tempo, timeSignature }) => {
+  const safeBars = Math.max(1, Number.isFinite(Number(bars)) ? Number(bars) : 1)
+  const safeNotesPerBar = Math.max(1, Number.isFinite(Number(notesPerBar)) ? Number(notesPerBar) : 8)
+  const safeTempo = Math.max(30, Math.min(300, Number.isFinite(Number(tempo)) ? Number(tempo) : 120))
+  const topRaw = Number.isFinite(Number(timeSignature?.top)) ? Number(timeSignature.top) : 4
+  const bottomRaw = Number.isFinite(Number(timeSignature?.bottom)) ? Number(timeSignature.bottom) : 4
+  const safeTop = Math.max(1, Math.min(32, Math.round(topRaw)))
+  const denominatorPower = getTimeSignatureDenominatorPower(Math.round(bottomRaw))
+  const safeBottom = Math.pow(2, denominatorPower)
+
+  const quarterNotesPerBar = safeTop * (4 / safeBottom)
+  const barTicks = Math.max(1, Math.round(MIDI_PPQN * quarterNotesPerBar))
+  const stepTicks = Math.max(1, Math.round(barTicks / safeNotesPerBar))
+  const totalColumns = safeBars * safeNotesPerBar
+
+  const events = []
+  let noteCount = 0
+
+  for (let col = 0; col < totalColumns; col += 1) {
+    const startTick = col * stepTicks
+    const endTick = startTick + stepTicks
+
+    STRINGS.forEach((stringName, stringIndex) => {
+      const fret = parseFretForMidi(tabData?.[stringName]?.[col])
+      if (fret === null) {
+        return
+      }
+
+      const pitch = STRING_OPEN_MIDI_NOTES[stringIndex] + fret
+      if (pitch < 0 || pitch > 127) {
+        return
+      }
+
+      events.push({ tick: startTick, type: 'on', pitch, velocity: 92 })
+      events.push({ tick: endTick, type: 'off', pitch, velocity: 0 })
+      noteCount += 1
+    })
+  }
+
+  if (noteCount === 0) {
+    return { midiBytes: null, noteCount: 0 }
+  }
+
+  events.sort((a, b) => {
+    if (a.tick !== b.tick) {
+      return a.tick - b.tick
+    }
+
+    if (a.type !== b.type) {
+      return a.type === 'off' ? -1 : 1
+    }
+
+    return a.pitch - b.pitch
+  })
+
+  const tempoMicrosecondsPerQuarter = Math.max(1, Math.round(60000000 / safeTempo))
+  const trackData = [
+    ...toVarLen(0), 0xff, 0x51, 0x03,
+    (tempoMicrosecondsPerQuarter >> 16) & 0xff,
+    (tempoMicrosecondsPerQuarter >> 8) & 0xff,
+    tempoMicrosecondsPerQuarter & 0xff,
+    ...toVarLen(0), 0xff, 0x58, 0x04, safeTop & 0xff, denominatorPower & 0xff, 24, 8,
+    ...toVarLen(0), 0xc0, 27,
+  ]
+
+  let previousTick = 0
+  events.forEach((event) => {
+    const delta = event.tick - previousTick
+    previousTick = event.tick
+
+    trackData.push(...toVarLen(delta))
+    if (event.type === 'on') {
+      trackData.push(0x90, event.pitch & 0x7f, event.velocity & 0x7f)
+    } else {
+      trackData.push(0x80, event.pitch & 0x7f, 0)
+    }
+  })
+
+  trackData.push(...toVarLen(0), 0xff, 0x2f, 0x00)
+
+  const midiBytes = Uint8Array.from([
+    ...textToAsciiBytes('MThd'),
+    ...toUint32(6),
+    ...toUint16(0),
+    ...toUint16(1),
+    ...toUint16(MIDI_PPQN),
+    ...textToAsciiBytes('MTrk'),
+    ...toUint32(trackData.length),
+    ...trackData,
+  ])
+
+  return { midiBytes, noteCount }
+}
 
 // Technique symbols and their visual representations
 const TECHNIQUES = {
@@ -479,42 +628,49 @@ const PLAYBACK_PROFILES = {
     label: 'Warm',
     brightness: 2600,
     pickNoise: 0.16,
-    overtone2: 0.14,
-    overtone3: 0.06,
-    detune: 2.4,
     bodyGain: 4.2,
     roomBias: 1.15,
+    damping: 0.58,
+    feedback: 0.972,
+    pickPosition: 0.34,
+    inharmonicity: 0.0016,
+    transient: 0.13,
   },
   balanced: {
     label: 'Balanced',
     brightness: 3600,
     pickNoise: 0.22,
-    overtone2: 0.18,
-    overtone3: 0.09,
-    detune: 3.4,
     bodyGain: 3.3,
     roomBias: 1,
+    damping: 0.7,
+    feedback: 0.962,
+    pickPosition: 0.28,
+    inharmonicity: 0.0012,
+    transient: 0.17,
   },
   bright: {
     label: 'Bright',
     brightness: 4800,
     pickNoise: 0.28,
-    overtone2: 0.22,
-    overtone3: 0.12,
-    detune: 4.4,
     bodyGain: 2.5,
     roomBias: 0.88,
+    damping: 0.82,
+    feedback: 0.948,
+    pickPosition: 0.22,
+    inharmonicity: 0.0009,
+    transient: 0.2,
   },
 }
 
 const PLAYBACK_ARTICULATIONS = {
   muted: {
     label: 'Muted',
-    attack: 0.0035,
-    sustain: 0.42,
-    noise: 1.18,
-    brightness: 0.82,
+    attack: 0.003,
+    sustain: 0.46,
+    noise: 1.2,
+    brightness: 0.78,
     room: 0.55,
+    feedback: 0.86,
   },
   natural: {
     label: 'Natural',
@@ -523,14 +679,16 @@ const PLAYBACK_ARTICULATIONS = {
     noise: 1,
     brightness: 1,
     room: 1,
+    feedback: 1,
   },
   open: {
     label: 'Open',
-    attack: 0.0065,
-    sustain: 1.05,
+    attack: 0.006,
+    sustain: 1.08,
     noise: 0.82,
     brightness: 1.08,
     room: 1.12,
+    feedback: 1.06,
   },
 }
 
@@ -572,6 +730,7 @@ function TabEditor({ darkMode }) {
   const [playbackPosition, setPlaybackPosition] = useState(-1)
   const [showTechniqueHints, setShowTechniqueHints] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingMidi, setIsExportingMidi] = useState(false)
   const [showSampleTabs, setShowSampleTabs] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [sampleTabFilter, setSampleTabFilter] = useState('all')
@@ -976,6 +1135,48 @@ function TabEditor({ darkMode }) {
     showToast('Imported analyzed tab into the editor', 'success')
   }
 
+  const exportToMIDI = () => {
+    setIsExportingMidi(true)
+
+    try {
+      const { midiBytes, noteCount } = buildMidiBytesFromTab({
+        tabData,
+        bars,
+        notesPerBar: NOTES_PER_BAR,
+        tempo,
+        timeSignature,
+      })
+
+      if (!midiBytes || noteCount === 0) {
+        showToast('Add at least one fret number before exporting MIDI.', 'error')
+        return
+      }
+
+      const sanitizedSectionName = sectionName
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+      const filename = `${sanitizedSectionName || 'guitar_tab'}_tab.mid`
+
+      const blob = new Blob([midiBytes], { type: 'audio/midi' })
+      const downloadUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = downloadUrl
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+
+      showToast(`MIDI downloaded (${noteCount} notes).`, 'success')
+    } catch (error) {
+      console.error('MIDI export error:', error)
+      showToast(`Error exporting MIDI: ${error.message}`, 'error')
+    } finally {
+      setIsExportingMidi(false)
+    }
+  }
+
   // Export to PDF
   const exportToPDF = async () => {
     if (!pdfRef.current) {
@@ -1297,146 +1498,185 @@ function TabEditor({ darkMode }) {
 
     const frequency = getFretFrequency(stringName, fret)
     const stringIndex = STRINGS.indexOf(stringName)
-    const startTime = ctx.currentTime + startOffset
-    const noteDuration = Math.min(1.8, Math.max(0.16, duration * articulation.sustain))
-    const peakGain = 0.38 + (stringIndex / (STRINGS.length - 1)) * 0.08
+    const stringWeight = stringIndex / (STRINGS.length - 1)
+    const baseStartTime = ctx.currentTime + startOffset
+    const humanizedJitter = (Math.random() - 0.5) * 0.0012
+    const startTime = Math.max(ctx.currentTime + 0.001, baseStartTime + humanizedJitter)
+    const noteDuration = Math.min(2.1, Math.max(0.18, duration * articulation.sustain))
+    const peakGain = 0.31 + stringWeight * 0.085
+    const stopTime = startTime + noteDuration + 0.24
 
     const noteGain = ctx.createGain()
     const roomSend = ctx.createGain()
     const panNode = ctx.createStereoPanner()
     const highPass = ctx.createBiquadFilter()
     const toneFilter = ctx.createBiquadFilter()
-    const bodyFilter = ctx.createBiquadFilter()
+    const bodyLow = ctx.createBiquadFilter()
+    const bodyMid = ctx.createBiquadFilter()
+    const airShelf = ctx.createBiquadFilter()
 
-    const fundamental = ctx.createOscillator()
-    const shimmer = ctx.createOscillator()
-    const secondHarmonic = ctx.createOscillator()
-    const thirdHarmonic = ctx.createOscillator()
-    const fundamentalGain = ctx.createGain()
-    const shimmerGain = ctx.createGain()
-    const secondGain = ctx.createGain()
-    const thirdGain = ctx.createGain()
+    const stringInput = ctx.createGain()
+    const stringDelay = ctx.createDelay(0.08)
+    const stringDamping = ctx.createBiquadFilter()
+    const stringFeedback = ctx.createGain()
+    const stringOutputTrim = ctx.createGain()
 
     const pickNoise = ctx.createBufferSource()
     const noiseFilter = ctx.createBiquadFilter()
     const noiseEnvelope = ctx.createGain()
+    const pickTransient = ctx.createOscillator()
+    const transientGain = ctx.createGain()
+
+    const period = 1 / frequency
+    const inharmonicFactor = 1 + profile.inharmonicity + (Math.random() - 0.5) * 0.0008
+    const delayedPeriod = clamp(period * inharmonicFactor, 0.0018, 0.04)
+    const initialPeriod = delayedPeriod * 0.997
+    const frequencyDamping = clamp(1 - (frequency - 82) / 2600, 0.82, 1.03)
+    const feedbackAmount = clamp(
+      profile.feedback * articulation.feedback * frequencyDamping,
+      0.78,
+      0.992
+    )
+
+    const dampingStart = clamp(
+      profile.brightness * articulation.brightness * (1 + profile.damping * 0.2),
+      1400,
+      9000
+    )
+    const dampingEnd = clamp(dampingStart * 0.55, 900, 5200)
 
     highPass.type = 'highpass'
-    highPass.frequency.value = 60
+    highPass.frequency.value = 58
 
     toneFilter.type = 'lowpass'
-    toneFilter.frequency.setValueAtTime(
-      Math.max(1800, profile.brightness * articulation.brightness),
-      startTime
-    )
-    toneFilter.frequency.exponentialRampToValueAtTime(
-      Math.max(1100, profile.brightness * 0.58),
-      startTime + noteDuration
-    )
-    toneFilter.Q.value = 0.75
+    toneFilter.frequency.setValueAtTime(dampingStart, startTime)
+    toneFilter.frequency.exponentialRampToValueAtTime(dampingEnd, startTime + noteDuration)
+    toneFilter.Q.value = 0.8
 
-    bodyFilter.type = 'peaking'
-    bodyFilter.frequency.value = Math.max(120, Math.min(360, frequency * 1.6))
-    bodyFilter.Q.value = 0.95
-    bodyFilter.gain.value = profile.bodyGain
+    bodyLow.type = 'peaking'
+    bodyLow.frequency.value = clamp(95 + frequency * 0.35, 95, 175)
+    bodyLow.Q.value = 1.2
+    bodyLow.gain.value = profile.bodyGain * 0.55
+
+    bodyMid.type = 'peaking'
+    bodyMid.frequency.value = clamp(180 + frequency * 0.85, 180, 420)
+    bodyMid.Q.value = 1.05
+    bodyMid.gain.value = profile.bodyGain
+
+    airShelf.type = 'highshelf'
+    airShelf.frequency.value = 2100
+    airShelf.gain.value = clamp((profile.brightness - 3200) / 560, -2.2, 4)
 
     noteGain.gain.setValueAtTime(0.0001, startTime)
     noteGain.gain.linearRampToValueAtTime(peakGain, startTime + articulation.attack)
     noteGain.gain.exponentialRampToValueAtTime(
-      Math.max(0.12, peakGain * 0.46),
-      startTime + Math.min(0.12, noteDuration * 0.35)
+      Math.max(0.09, peakGain * 0.48),
+      startTime + Math.min(0.16, noteDuration * 0.42)
     )
-    noteGain.gain.exponentialRampToValueAtTime(0.0001, startTime + noteDuration)
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, stopTime)
 
-    roomSend.gain.value = Math.min(0.42, (roomMix / 100) * 0.72 * profile.roomBias * articulation.room)
-    panNode.pan.value = ((stringIndex / (STRINGS.length - 1)) - 0.5) * 0.46
+    roomSend.gain.value = Math.min(0.44, (roomMix / 100) * 0.72 * profile.roomBias * articulation.room)
+    panNode.pan.value = (
+      ((stringIndex / (STRINGS.length - 1)) - 0.5) * 0.44
+    ) + ((Math.random() - 0.5) * 0.04)
 
-    fundamental.type = 'triangle'
-    fundamental.frequency.setValueAtTime(frequency, startTime)
-    shimmer.type = playbackProfile === 'bright' ? 'sawtooth' : 'triangle'
-    shimmer.frequency.setValueAtTime(frequency, startTime)
-    shimmer.detune.setValueAtTime(profile.detune, startTime)
-    secondHarmonic.type = 'sine'
-    secondHarmonic.frequency.setValueAtTime(frequency * 2, startTime)
-    thirdHarmonic.type = 'sine'
-    thirdHarmonic.frequency.setValueAtTime(frequency * 3, startTime)
+    stringDelay.delayTime.setValueAtTime(initialPeriod, startTime)
+    stringDelay.delayTime.linearRampToValueAtTime(delayedPeriod, startTime + 0.024)
 
-    fundamentalGain.gain.value = 0.34
-    shimmerGain.gain.value = 0.12
-    secondGain.gain.value = profile.overtone2
-    thirdGain.gain.value = profile.overtone3
+    stringDamping.type = 'lowpass'
+    stringDamping.frequency.setValueAtTime(dampingStart, startTime)
+    stringDamping.frequency.exponentialRampToValueAtTime(dampingEnd, startTime + noteDuration)
+    stringDamping.Q.value = 0.5 + profile.damping * 0.3
+
+    stringFeedback.gain.setValueAtTime(feedbackAmount, startTime)
+    stringFeedback.gain.exponentialRampToValueAtTime(0.0001, stopTime)
+    stringOutputTrim.gain.value = 0.8 + articulation.sustain * 0.08
 
     pickNoise.buffer = noiseBuffer
-    noiseFilter.type = 'bandpass'
-    noiseFilter.frequency.setValueAtTime(
-      Math.max(1800, profile.brightness * 0.95),
+    pickNoise.playbackRate.setValueAtTime(
+      clamp(0.96 + stringWeight * 0.06 + (Math.random() - 0.5) * 0.05, 0.75, 1.25),
       startTime
     )
-    noiseFilter.Q.value = 0.85
+
+    noiseFilter.type = 'bandpass'
+    noiseFilter.frequency.setValueAtTime(
+      clamp(profile.brightness * (0.88 + (1 - profile.pickPosition) * 0.36), 1600, 7800),
+      startTime
+    )
+    noiseFilter.Q.value = 0.95
+
     noiseEnvelope.gain.setValueAtTime(0.0001, startTime)
     noiseEnvelope.gain.linearRampToValueAtTime(
-      profile.pickNoise * articulation.noise,
-      startTime + 0.002
+      clamp(profile.pickNoise * articulation.noise * (0.86 + stringWeight * 0.22), 0.08, 0.54),
+      startTime + 0.0015
     )
     noiseEnvelope.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.04)
 
-    fundamental.connect(fundamentalGain)
-    shimmer.connect(shimmerGain)
-    secondHarmonic.connect(secondGain)
-    thirdHarmonic.connect(thirdGain)
-
-    fundamentalGain.connect(noteGain)
-    shimmerGain.connect(noteGain)
-    secondGain.connect(noteGain)
-    thirdGain.connect(noteGain)
+    pickTransient.type = playbackProfile === 'bright' ? 'sawtooth' : 'triangle'
+    pickTransient.frequency.setValueAtTime(
+      frequency * (3.6 - profile.pickPosition * 1.1),
+      startTime
+    )
+    transientGain.gain.setValueAtTime(0.0001, startTime)
+    transientGain.gain.linearRampToValueAtTime(
+      clamp(profile.transient * articulation.noise * 0.18, 0.02, 0.14),
+      startTime + 0.001
+    )
+    transientGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.022)
 
     pickNoise.connect(noiseFilter)
     noiseFilter.connect(noiseEnvelope)
+    noiseEnvelope.connect(stringInput)
     noiseEnvelope.connect(noteGain)
+
+    pickTransient.connect(transientGain)
+    transientGain.connect(stringInput)
+    transientGain.connect(noteGain)
+
+    stringInput.connect(stringDelay)
+    stringDelay.connect(stringDamping)
+    stringDamping.connect(stringFeedback)
+    stringFeedback.connect(stringDelay)
+    stringDamping.connect(stringOutputTrim)
+    stringOutputTrim.connect(noteGain)
 
     noteGain.connect(highPass)
     highPass.connect(toneFilter)
-    toneFilter.connect(bodyFilter)
-    bodyFilter.connect(panNode)
+    toneFilter.connect(bodyLow)
+    bodyLow.connect(bodyMid)
+    bodyMid.connect(airShelf)
+    airShelf.connect(panNode)
     panNode.connect(dryGain)
     panNode.connect(roomSend)
     roomSend.connect(roomInput)
 
     const voiceNodes = [
-      fundamental,
-      shimmer,
-      secondHarmonic,
-      thirdHarmonic,
       pickNoise,
-      fundamentalGain,
-      shimmerGain,
-      secondGain,
-      thirdGain,
+      pickTransient,
       noteGain,
       roomSend,
       panNode,
       highPass,
       toneFilter,
-      bodyFilter,
+      bodyLow,
+      bodyMid,
+      airShelf,
+      stringInput,
+      stringDelay,
+      stringDamping,
+      stringFeedback,
+      stringOutputTrim,
       noiseFilter,
       noiseEnvelope,
+      transientGain,
     ]
 
-    const stopTime = startTime + noteDuration + 0.06
-
-    fundamental.start(startTime)
-    shimmer.start(startTime)
-    secondHarmonic.start(startTime)
-    thirdHarmonic.start(startTime)
     pickNoise.start(startTime)
-
-    fundamental.stop(stopTime)
-    shimmer.stop(stopTime)
-    secondHarmonic.stop(stopTime)
-    thirdHarmonic.stop(stopTime)
     pickNoise.stop(startTime + 0.05)
+    pickTransient.start(startTime)
+    pickTransient.stop(startTime + 0.03)
 
-    scheduleAudioCleanup(voiceNodes, stopTime + 0.08)
+    scheduleAudioCleanup(voiceNodes, stopTime + 0.1)
   }
 
   const playColumn = (colIndex, beatDuration) => {
@@ -2041,6 +2281,7 @@ function TabEditor({ darkMode }) {
               <div className="p-6 space-y-5">
                 <div className="flex flex-wrap items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => setAnalysisSource('current')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       analysisSource === 'current'
@@ -2051,6 +2292,7 @@ function TabEditor({ darkMode }) {
                     Current recording
                   </button>
                   <button
+                    type="button"
                     onClick={() => setAnalysisSource('demo')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       analysisSource === 'demo'
@@ -2061,6 +2303,7 @@ function TabEditor({ darkMode }) {
                     Chart/Tab MIDI demo
                   </button>
                   <button
+                    type="button"
                     onClick={() => setAnalysisSource('upload')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       analysisSource === 'upload'
@@ -2071,6 +2314,7 @@ function TabEditor({ darkMode }) {
                     Upload MP3
                   </button>
                   <button
+                    type="button"
                     onClick={() => setAnalysisSource('youtube')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       analysisSource === 'youtube'
@@ -2081,6 +2325,7 @@ function TabEditor({ darkMode }) {
                     YouTube link
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setAnalysisSource('saved')
                       loadRecordings()
@@ -2166,6 +2411,7 @@ function TabEditor({ darkMode }) {
                   </div>
 
                   <button
+                    type="button"
                     onClick={analyzeAudioToTab}
                     disabled={isAnalyzingAudio}
                     className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
@@ -2215,6 +2461,7 @@ function TabEditor({ darkMode }) {
                       </select>
                     </div>
                     <button
+                      type="button"
                       onClick={loadRecordings}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2249,6 +2496,7 @@ function TabEditor({ darkMode }) {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => analysisFileInputRef.current?.click()}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                           darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2257,6 +2505,7 @@ function TabEditor({ darkMode }) {
                         Choose file
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setUploadedAnalysisFile(null)
                           if (analysisFileInputRef.current) {
@@ -2383,6 +2632,7 @@ function TabEditor({ darkMode }) {
 
                       <div className="flex flex-wrap gap-3">
                         <button
+                          type="button"
                           onClick={importAnalyzedTab}
                           className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                             darkMode ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-slate-950 text-white hover:bg-slate-800'
@@ -2391,6 +2641,7 @@ function TabEditor({ darkMode }) {
                           Import into editor
                         </button>
                         <button
+                          type="button"
                           onClick={() => setAnalysisResult(null)}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                             darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -2791,6 +3042,18 @@ function TabEditor({ darkMode }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                 </svg>
                 {isExporting ? 'Exporting...' : 'Export PDF'}
+              </button>
+              <button
+                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg
+                  ${darkMode ? 'bg-emerald-500/18 text-emerald-200 hover:bg-emerald-500/26' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}
+                  ${isExportingMidi ? 'opacity-75 cursor-wait' : ''}`}
+                onClick={exportToMIDI}
+                disabled={isExportingMidi}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"/>
+                </svg>
+                {isExportingMidi ? 'Preparing MIDI...' : 'Download as MIDI'}
               </button>
               <button 
                 className="px-4 py-2.5 text-sm font-medium text-red-400 bg-red-500/10 rounded-xl hover:bg-red-500/20 transition-all flex items-center gap-1"
